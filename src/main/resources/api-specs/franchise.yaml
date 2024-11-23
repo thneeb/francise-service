@@ -1,0 +1,219 @@
+openapi: 3.0.2
+info:
+  title: franchise
+  version: 1.0.0
+  contact:
+    name: Thomas Neeb
+    email: thomas.neeb@nttdata.com
+paths:
+  /franchise:
+    post:
+      operationId: initializeGame
+      responses:
+        '201':
+          description: Game executing
+  /franchise/{gameId}:
+    parameters:
+      -
+        name: gameId
+        schema:
+          type: string
+        required: true
+        in: path
+    get:
+      operationId: retrieveGameBoard
+      responses:
+        '200':
+          description: Returns the actual game field for the given id
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/GameField'
+  /franchise/{gameId}/draws:
+    parameters:
+      -
+        name: gameId
+        schema:
+          type: string
+        required: true
+        in: path
+    get:
+      operationId: evaluateNextPossibleDraws
+      responses:
+        '200':
+          description: Returns all next possible draws
+          content:
+            'application/json':
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Draw'
+    post:
+      operationId: createDraw
+      requestBody:
+        content:
+          'application/json':
+            schema:
+              $ref: '#/components/schemas/Draw'
+      responses:
+        '200':
+          description: Returns the played draw
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/ExtendedDraw'
+  /franchise/{gameId}/games:
+    parameters:
+      -
+        name: gameId
+        schema:
+          type: string
+        required: true
+        in: path
+    post:
+      operationId: playGame
+      requestBody:
+        content:
+          'application/json':
+            schema:
+              $ref: '#/components/schemas/PlayConfig'
+      responses:
+        '200':
+          description: Returns the played draw
+          content:
+            'application/json':
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExtendedDraw'
+components:
+  schemas:
+    ExtendedDraw:
+      properties:
+        draw:
+          $ref: '#/components/schemas/Draw'
+        info:
+          properties:
+            income:
+              type: integer
+            influence:
+              type: array
+              items:
+                type: string
+    GameField:
+      properties:
+        end:
+          type: boolean
+        next:
+          $ref: '#/components/schemas/PlayerColor'
+        cities:
+          type: array
+          items:
+            $ref: '#/components/schemas/CityPlate'
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/Player'
+        firstCities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerRegion'
+        closedRegions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Region'
+    CityPlate:
+      properties:
+        city:
+          $ref: '#/components/schemas/City'
+        size:
+          type: integer
+        closed:
+          type: boolean
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerColor'
+    Player:
+      properties:
+        color:
+          $ref: '#/components/schemas/PlayerColor'
+        money:
+          type: integer
+        influence:
+          type: integer
+        income:
+          type: integer
+        bonusTiles:
+          type: integer
+    Draw:
+      properties:
+        color:
+          $ref: '#/components/schemas/PlayerColor'
+        computer:
+          $ref: '#/components/schemas/Computer'
+        extension:
+          type: array
+          items:
+            $ref: '#/components/schemas/City'
+        increase:
+          type: array
+          items:
+            $ref: '#/components/schemas/City'
+        bonusTileUsage:
+          $ref: '#/components/schemas/BonusTileUsage'
+    Computer:
+      properties:
+        strategy:
+          $ref: '#/components/schemas/ComputerStrategy'
+        deep:
+          type: integer
+        slice:
+          type: integer
+    ComputerStrategy:
+      enum:
+        - LEARNINGS
+        - BEST_MOVE
+        - MINIMAX
+        - AB_PRUNE
+        - DIVIDE_AND_CONQUER
+    PlayerRegion:
+      properties:
+        color:
+          $ref: '#/components/schemas/PlayerColor'
+        region:
+          $ref: '#/components/schemas/Region'
+    PlayConfig:
+      properties:
+        timesToPlay:
+          type: integer
+        useLearnings:
+          type: boolean
+    BonusTileUsage:
+      enum:
+        - MONEY
+        - EXTENSION
+        - INCREASE
+    PlayerColor:
+      enum:
+        - RED
+        - BLUE
+        - WHITE
+        - ORANGE
+        - BLACK
+    City:
+      properties:
+        name:
+          type: string
+    Region:
+      enum:
+        - CALIFORNIA
+        - GRAND_CANYON
+        - UPPER_WEST
+        - MONTANA
+        - GREAT_LAKES
+        - NEW_YORK
+        - WASHINGTON
+        - FLORIDA
+        - CENTRAL
+        - TEXAS

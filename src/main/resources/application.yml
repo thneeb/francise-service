@@ -1,0 +1,6 @@
+# local dev environment
+management:
+  server:
+    port: 4466
+server:
+  port: 8080
