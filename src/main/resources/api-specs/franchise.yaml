@@ -29,6 +29,25 @@ paths:
             'application/json':
               schema:
                 $ref: '#/components/schemas/GameField'
+  /franchise/{gameId}/vector:
+    parameters:
+      -
+        name: gameId
+        schema:
+          type: string
+        required: true
+        in: path
+    get:
+      operationId: retrieveVectorizedBoard
+      responses:
+        '200':
+          description: vectorized board state
+          content:
+            'application/json':
+              schema:
+                type: array
+                items:
+                  type: integer
   /franchise/{gameId}/draws:
     parameters:
       -
@@ -86,6 +105,33 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ExtendedDraw'
+  /franchise/{gameId}/learnings:
+    parameters:
+      -
+        name: gameId
+        schema:
+          type: string
+        required: true
+        in: path
+    get:
+      operationId: learnGame
+      requestBody:
+        content:
+          'application/json':
+            schema:
+              $ref: '#/components/schemas/PlayConfig'
+      responses:
+        '200':
+          description: Returns the played draw
+          content:
+            'text/csv':
+              schema:
+                type: string
+    post:
+      operationId: setupLearnings
+      responses:
+        '204':
+          description: Model setup up
 components:
   schemas:
     ExtendedDraw:
@@ -177,6 +223,7 @@ components:
         - MINIMAX
         - AB_PRUNE
         - DIVIDE_AND_CONQUER
+        - MACHINE_LEARNING
     PlayerRegion:
       properties:
         color:
@@ -188,6 +235,8 @@ components:
         timesToPlay:
           type: integer
         useLearnings:
+          type: boolean
+        header:
           type: boolean
     BonusTileUsage:
       enum:

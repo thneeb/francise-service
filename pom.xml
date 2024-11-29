@@ -47,10 +47,40 @@
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
     </dependency>
+    <!-- Apache Spark Dependencies -->
+    <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-core_2.12</artifactId>
+        <version>3.5.0</version>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-mllib_2.12</artifactId>
+        <version>3.5.0</version>
+    </dependency>
+    <dependency>
+        <groupId>javax.servlet</groupId>
+        <artifactId>javax.servlet-api</artifactId>
+        <version>4.0.1</version>
+        <scope>provided</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+            <jvmArguments>
+                --add-exports=java.base/sun.nio.ch=ALL-UNNAMED
+                --add-exports=java.base/java.nio=ALL-UNNAMED
+                --add-opens=java.base/java.nio=ALL-UNNAMED
+                --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+                -Dspring.profiles.active=local
+            </jvmArguments>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.openapitools</groupId>
         <artifactId>openapi-generator-maven-plugin</artifactId>
@@ -78,13 +108,25 @@
                 <apiPackage>de.neebs.franchise.client.boundary</apiPackage>
                 <modelPackage>de.neebs.franchise.client.entity</modelPackage>
                 <invokerPackage>de.neebs.franchise.client.integration</invokerPackage>
-                <additionalModelTypeAnnotations>@lombok.Builder @lombok.NoArgsConstructor
+                <additionalModelTypeAnnotations>
+                  @lombok.Builder
+                  @lombok.NoArgsConstructor
                   @lombok.AllArgsConstructor(access=lombok.AccessLevel.PROTECTED)
                 </additionalModelTypeAnnotations>
               </configOptions>
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>
+            --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+            --add-opens=java.base/java.nio=ALL-UNNAMED
+          </argLine>
+        </configuration>
       </plugin>
     </plugins>
   </build>

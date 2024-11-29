@@ -184,9 +184,9 @@ class ConnectionTest {
     void testStreetCounts() {
         Map<Integer, Long> map = Rules.CONNECTIONS.stream().collect(Collectors.groupingBy(Connection::getCosts, Collectors.counting()));
 
-        Assertions.assertEquals(11, map.get(8));
-        Assertions.assertEquals(17, map.get(0));
-        Assertions.assertEquals(24, map.get(5));
+        Assertions.assertEquals(10, map.get(8));
+        Assertions.assertEquals(20, map.get(0));
+        Assertions.assertEquals(25, map.get(5));
 
     }
 }

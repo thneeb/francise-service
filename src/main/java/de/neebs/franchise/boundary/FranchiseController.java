@@ -72,6 +72,12 @@ public class FranchiseController implements DefaultApi {
     }
 
     @Override
+    public ResponseEntity<List<Integer>> retrieveVectorizedBoard(String gameId) {
+        GameRound round = games.get(gameId);
+        return ResponseEntity.ok(franchiseService.createVectorizedBoard(round, true));
+    }
+
+    @Override
     public ResponseEntity<ExtendedDraw> createDraw(String gameId, Draw draw) {
         GameRound round = games.get(gameId);
         if (mapPlayerColor(round.getNext()) != draw.getColor()) {
@@ -99,6 +105,8 @@ public class FranchiseController implements DefaultApi {
                 int deep = computer.getDeep() == null ? 3 : computer.getDeep();
                 int slice = computer.getSlice() == null ? 3 : computer.getDeep();
                 draw = mapDraw(franchiseService.divideAndConquer(round, deep, slice));
+            } else if (computer.getStrategy() == ComputerStrategy.MACHINE_LEARNING) {
+                draw = mapDraw(franchiseService.machineLearning(round));
             } else {
                 throw new IllegalArgumentException("Unknown strategy");
             }
@@ -131,6 +139,20 @@ public class FranchiseController implements DefaultApi {
         boolean useLearnings = playConfig != null && playConfig.getUseLearnings() != null && playConfig.getUseLearnings();
         franchiseService.play(round, times, useLearnings);
         return ResponseEntity.ok(new ArrayList<>());
+    }
+
+    @Override
+    public ResponseEntity<String> learnGame(String gameId, PlayConfig playConfig) {
+        GameRound round = games.get(gameId);
+        int times = playConfig == null ? 1 : playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
+        boolean header = playConfig != null && playConfig.getHeader() != null && playConfig.getHeader();
+        return ResponseEntity.ok(franchiseService.play2(round, times, header));
+    }
+
+    @Override
+    public ResponseEntity<Void> setupLearnings(String gameId) {
+        franchiseService.setupLearnings(games.get(gameId));
+        return ResponseEntity.ok().build();
     }
 
     private de.neebs.franchise.control.Draw mapDraw(Draw draw) {
