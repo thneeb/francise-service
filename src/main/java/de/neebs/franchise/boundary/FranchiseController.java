@@ -35,6 +35,10 @@ public class FranchiseController implements DefaultApi {
 
     private final FranchiseService franchiseService;
 
+    private final FranchiseMLService franchiseMLService;
+
+    private final FranchiseCoreService franchiseCoreService;
+
     @Override
     public ResponseEntity<Void> initializeGame() {
         GameRound gameRound = franchiseService.init(List.of(BLUE, RED));
@@ -65,16 +69,10 @@ public class FranchiseController implements DefaultApi {
                         .color(mapPlayerColor(f.getKey()))
                         .bonusTiles(f.getValue().getBonusTiles())
                         .money(f.getValue().getMoney())
-                        .income(franchiseService.calcIncome(round, f.getKey()))
+                        .income(franchiseCoreService.calcIncome(round, f.getKey()))
                         .influence(f.getValue().getInfluence())
                         .build()).toList());
         return ResponseEntity.ok(field);
-    }
-
-    @Override
-    public ResponseEntity<List<Integer>> retrieveVectorizedBoard(String gameId) {
-        GameRound round = games.get(gameId);
-        return ResponseEntity.ok(franchiseService.createVectorizedBoard(round, true));
     }
 
     @Override
@@ -106,14 +104,14 @@ public class FranchiseController implements DefaultApi {
                 int slice = computer.getSlice() == null ? 3 : computer.getDeep();
                 draw = mapDraw(franchiseService.divideAndConquer(round, deep, slice));
             } else if (computer.getStrategy() == ComputerStrategy.MACHINE_LEARNING) {
-                draw = mapDraw(franchiseService.machineLearning(round));
+                draw = mapDraw(franchiseMLService.machineLearning(round));
             } else {
                 throw new IllegalArgumentException("Unknown strategy");
             }
         }
         log.info("Best Move: " + draw);
 
-        ExtendedGameRound extendedGameRound = franchiseService.manualDraw(round, mapDraw(draw));
+        ExtendedGameRound extendedGameRound = franchiseCoreService.manualDraw(round, mapDraw(draw));
 
         games.put(gameId, extendedGameRound.getGameRound());
         ExtendedDraw extendedDraw = new ExtendedDraw();
@@ -129,7 +127,7 @@ public class FranchiseController implements DefaultApi {
     @Override
     public ResponseEntity<List<Draw>> evaluateNextPossibleDraws(String gameId) {
         GameRound round = games.get(gameId);
-        return ResponseEntity.ok(franchiseService.nextDraws(round).stream().map(this::mapDraw).toList());
+        return ResponseEntity.ok(franchiseCoreService.nextDraws(round).stream().map(this::mapDraw).toList());
     }
 
     @Override
@@ -144,14 +142,14 @@ public class FranchiseController implements DefaultApi {
     @Override
     public ResponseEntity<String> learnGame(String gameId, PlayConfig playConfig) {
         GameRound round = games.get(gameId);
-        int times = playConfig == null ? 1 : playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
+        int times = playConfig == null || playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
         boolean header = playConfig != null && playConfig.getHeader() != null && playConfig.getHeader();
-        return ResponseEntity.ok(franchiseService.play2(round, times, header));
+        return ResponseEntity.ok(franchiseMLService.play2(round, times, header));
     }
 
     @Override
     public ResponseEntity<Void> setupLearnings(String gameId) {
-        franchiseService.setupLearnings(games.get(gameId));
+        franchiseMLService.setupLearnings(games.get(gameId));
         return ResponseEntity.ok().build();
     }
 

@@ -47,6 +47,23 @@
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
     </dependency>
+    <!-- ai.djl -->
+    <dependency>
+      <groupId>ai.djl</groupId>
+      <artifactId>api</artifactId>
+      <version>0.31.0</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.djl.mxnet</groupId>
+      <artifactId>mxnet-engine</artifactId>
+      <version>0.31.0</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.djl.mxnet</groupId>
+      <artifactId>mxnet-native-auto</artifactId>
+      <version>1.8.0</version>
+    </dependency>
+
     <!-- Apache Spark Dependencies -->
     <dependency>
         <groupId>org.apache.spark</groupId>

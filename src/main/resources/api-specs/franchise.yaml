@@ -29,25 +29,6 @@ paths:
             'application/json':
               schema:
                 $ref: '#/components/schemas/GameField'
-  /franchise/{gameId}/vector:
-    parameters:
-      -
-        name: gameId
-        schema:
-          type: string
-        required: true
-        in: path
-    get:
-      operationId: retrieveVectorizedBoard
-      responses:
-        '200':
-          description: vectorized board state
-          content:
-            'application/json':
-              schema:
-                type: array
-                items:
-                  type: integer
   /franchise/{gameId}/draws:
     parameters:
       -
