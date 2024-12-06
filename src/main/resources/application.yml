@@ -1,4 +1,8 @@
 # local dev environment
+logging:
+  level:
+    root: DEBUG
+    de.neebs.franchise.control: DEBUG
 management:
   server:
     port: 4466

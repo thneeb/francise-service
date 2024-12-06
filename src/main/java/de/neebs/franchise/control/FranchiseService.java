@@ -18,42 +18,6 @@ public class FranchiseService {
 
     private final FranchiseCoreService franchiseCoreService;
 
-    public GameRound init(List<PlayerColor> players) {
-        MoneyMap moneyMap = Rules.MONEY_MAP.get(players.size());
-        Map<PlayerColor, Score> scores = new EnumMap<>(PlayerColor.class);
-        for (int i = 0; i < players.size() && i < moneyMap.getInitialMoney().size(); i++) {
-            Score score = new Score();
-            score.setInfluence(0);
-            score.setBonusTiles(players.size() == 2 ? 4 : 3);
-            score.setMoney(moneyMap.getInitialMoney().get(i));
-            scores.put(players.get(i), score);
-        }
-        Map<City, CityPlate> cityPlates = new EnumMap<>(City.class);
-        List<Region> regionScores = new ArrayList<>();
-        if (players.size() == 2) {
-            PlayerColor neutralColor = Arrays.stream(PlayerColor.values()).filter(f -> !players.contains(f)).findAny().orElseThrow();
-            CityPlate plate = new CityPlate(true, new ArrayList<>());
-            plate.getBranches().add(neutralColor);
-            for (Region region : Set.of(Region.CALIFORNIA, Region.UPPER_WEST, Region.MONTANA)) {
-                for (City city : region.getCities()) {
-                    cityPlates.put(city, plate);
-                }
-                regionScores.add(region);
-            }
-        }
-        return new GameRound(
-                players,
-                players.get(players.size() - 1),
-                null,
-                0,
-                scores,
-                cityPlates,
-                regionScores,
-                new EnumMap<>(Region.class),
-                false
-                );
-    }
-
     public List<GameRoundDraw> nextRounds(GameRound gameRound, int count) {
         List<GameRoundDraw> set = List.of(GameRoundDraw.builder().gameRound(new ExtendedGameRound(gameRound, null)).build());
         for (int i = 0; i < count && set.size() < 25000; i++) {
@@ -238,8 +202,8 @@ public class FranchiseService {
     }
 
     public ScoredDraw minimaxAbPrune(GameRound round, int deep) {
-        Map<PlayerColor, Integer> alpha = new HashMap<>();
-        Map<PlayerColor, Integer> beta = new HashMap<>();
+        Map<PlayerColor, Integer> alpha = new EnumMap<>(PlayerColor.class);
+        Map<PlayerColor, Integer> beta = new EnumMap<>(PlayerColor.class);
         for (PlayerColor color : round.getPlayers()) {
             alpha.put(color, -10000);
             beta.put(color, 10000);

@@ -37,11 +37,13 @@ public class FranchiseController implements DefaultApi {
 
     private final FranchiseMLService franchiseMLService;
 
+    private final FranchiseRLService franchiseRLService;
+
     private final FranchiseCoreService franchiseCoreService;
 
     @Override
     public ResponseEntity<Void> initializeGame() {
-        GameRound gameRound = franchiseService.init(List.of(BLUE, RED));
+        GameRound gameRound = franchiseCoreService.init(List.of(BLUE, RED));
         String uuid = UUID.randomUUID().toString();
         games.put(uuid, gameRound);
         String href = linkTo(methodOn(getClass()).retrieveGameBoard(uuid)).withSelfRel().getHref();
@@ -105,6 +107,8 @@ public class FranchiseController implements DefaultApi {
                 draw = mapDraw(franchiseService.divideAndConquer(round, deep, slice));
             } else if (computer.getStrategy() == ComputerStrategy.MACHINE_LEARNING) {
                 draw = mapDraw(franchiseMLService.machineLearning(round));
+            } else if (computer.getStrategy() == ComputerStrategy.REINFORCEMENT_LEARNING) {
+                draw = mapDraw(franchiseRLService.reinforcementLearning(round));
             } else {
                 throw new IllegalArgumentException("Unknown strategy");
             }
@@ -145,12 +149,6 @@ public class FranchiseController implements DefaultApi {
         int times = playConfig == null || playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
         boolean header = playConfig != null && playConfig.getHeader() != null && playConfig.getHeader();
         return ResponseEntity.ok(franchiseMLService.play2(round, times, header));
-    }
-
-    @Override
-    public ResponseEntity<Void> setupLearnings(String gameId) {
-        franchiseMLService.setupLearnings(games.get(gameId));
-        return ResponseEntity.ok().build();
     }
 
     private de.neebs.franchise.control.Draw mapDraw(Draw draw) {

@@ -108,11 +108,6 @@ paths:
             'text/csv':
               schema:
                 type: string
-    post:
-      operationId: setupLearnings
-      responses:
-        '204':
-          description: Model setup up
 components:
   schemas:
     ExtendedDraw:
@@ -205,6 +200,7 @@ components:
         - AB_PRUNE
         - DIVIDE_AND_CONQUER
         - MACHINE_LEARNING
+        - REINFORCEMENT_LEARNING
     PlayerRegion:
       properties:
         color:

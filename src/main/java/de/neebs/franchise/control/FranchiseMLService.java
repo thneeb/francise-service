@@ -4,15 +4,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import org.apache.spark.ml.feature.VectorAssembler;
 import org.apache.spark.ml.linalg.Vector;
 import org.apache.spark.ml.linalg.Vectors;
-import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.types.StructType;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -24,7 +18,7 @@ public class FranchiseMLService {
 
     private final FranchiseCoreService franchiseCoreService;
 
-    private LinearRegressionModel model;
+    private final LinearRegressionModel regressionModel;
 
     public String play2(GameRound round, int times, boolean header) {
         StringBuilder sb = new StringBuilder();
@@ -119,48 +113,6 @@ public class FranchiseMLService {
         return result;
     }
 
-    public void setupLearnings(GameRound gameRound) {
-        SparkSession spark = SparkSession.builder()
-                .appName("Franchise ML Example")
-                .master("local[*]")
-                .config("spark.driver.extraJavaOptions", "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED")
-                .config("spark.executor.extraJavaOptions", "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --conf spark.dynamicAllocation.enabled=false")
-                .config("spark.ui.enabled", "false") // Disable Spark UI
-                .getOrCreate();
-
-        String tmpDir = System.getProperty("java.io.tmpdir");
-
-        String dataFile = tmpDir + "data.csv";
-
-        Dataset<Row> df = spark.read()
-                .format("csv")
-                .option("header", "true")
-                .option("inferSchema", "true")
-                .load(dataFile);
-
-        StructType schema = df.schema();
-        String[] inputCols = schema.fieldNames();
-        List<String> inputs = Arrays.asList(inputCols);
-        inputs = new ArrayList<>(inputs);
-        inputs.remove("Score");
-        for (PlayerColor pc : PlayerColor.values()) {
-            inputs.removeIf(f -> f.startsWith(pc.name()));
-        }
-        inputCols = inputs.toArray(new String[0]);
-
-        VectorAssembler assembler = new VectorAssembler()
-                .setInputCols(inputCols)
-                .setOutputCol("features");
-
-        Dataset<Row> vectorData = assembler.transform(df);
-
-        // Create and train the model
-        LinearRegression lr = new LinearRegression().setFeaturesCol("features").setLabelCol("Score");
-        model = lr.train(vectorData);
-
-        spark.close();
-    }
-
     public Draw machineLearning(GameRound round) {
         List<Draw> draws = franchiseCoreService.nextDraws(round);
         List<RatedDraw> ratedDraws = new ArrayList<>();
@@ -169,7 +121,7 @@ public class FranchiseMLService {
             List<Integer> list = createVectorizedBoard(gr.getGameRound(), false);
             double[] doubles = list.stream().mapToDouble(f -> (double)f).toArray();
             Vector vector = Vectors.dense(doubles);
-            double value = model.predict(vector);
+            double value = regressionModel.predict(vector);
             ratedDraws.add(RatedDraw.builder().draw(draw).rating(value).build());
         }
         ratedDraws.sort(Comparator.comparing(RatedDraw::getRating).reversed());

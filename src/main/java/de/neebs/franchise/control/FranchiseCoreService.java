@@ -8,6 +8,42 @@ import java.util.stream.Collectors;
 
 @Service
 public class FranchiseCoreService {
+    public GameRound init(List<PlayerColor> players) {
+        MoneyMap moneyMap = Rules.MONEY_MAP.get(players.size());
+        Map<PlayerColor, Score> scores = new EnumMap<>(PlayerColor.class);
+        for (int i = 0; i < players.size() && i < moneyMap.getInitialMoney().size(); i++) {
+            Score score = new Score();
+            score.setInfluence(0);
+            score.setBonusTiles(players.size() == 2 ? 4 : 3);
+            score.setMoney(moneyMap.getInitialMoney().get(i));
+            scores.put(players.get(i), score);
+        }
+        Map<City, CityPlate> cityPlates = new EnumMap<>(City.class);
+        List<Region> regionScores = new ArrayList<>();
+        if (players.size() == 2) {
+            PlayerColor neutralColor = Arrays.stream(PlayerColor.values()).filter(f -> !players.contains(f)).findAny().orElseThrow();
+            CityPlate plate = new CityPlate(true, new ArrayList<>());
+            plate.getBranches().add(neutralColor);
+            for (Region region : Set.of(Region.CALIFORNIA, Region.UPPER_WEST, Region.MONTANA)) {
+                for (City city : region.getCities()) {
+                    cityPlates.put(city, plate);
+                }
+                regionScores.add(region);
+            }
+        }
+        return new GameRound(
+                players,
+                players.get(players.size() - 1),
+                null,
+                0,
+                scores,
+                cityPlates,
+                regionScores,
+                new EnumMap<>(Region.class),
+                false
+        );
+    }
+
     public ExtendedGameRound manualDraw(GameRound oldGameRound, Draw draw) {
         GameRound gameRound = GameRound.init(oldGameRound);
         AdditionalInfo additionalInfo = new AdditionalInfo();
