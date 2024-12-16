@@ -99,7 +99,7 @@ public class FranchiseCoreService {
                 }
                 score.setMoney(score.getMoney() - entry.getValue().intValue());
             } else {
-                throw new IllegalArgumentException("Cannot increase market share in " + entry.getKey().getName());
+                throw new IllegalDrawException("Cannot increase market share in " + entry.getKey().getName());
             }
         }
         openFranchise(gameRound);
@@ -279,11 +279,11 @@ public class FranchiseCoreService {
         if (optional != null) {
             // if city is already close, we cannot expand to there
             if (optional.isClosed()) {
-                throw new IllegalStateException();
+                throw new IllegalDrawException("City " + city + " is already closed");
             }
             // if the player has already a branch here
             if (optional.getBranches().contains(gameRound.getNext())) {
-                throw new IllegalStateException();
+                throw new IllegalDrawException("Player " + gameRound.getNext() + " already has a branch in " + city);
             }
         }
         Set<City> owned = gameRound.getPlates().entrySet().stream().filter(f -> f.getValue().getBranches().contains(gameRound.getActual())).map(Map.Entry::getKey).collect(Collectors.toSet());
@@ -298,47 +298,47 @@ public class FranchiseCoreService {
                 additionalInfo.getInfluenceComments().add("Extension costs for " + city + ": "+ optionalConnection.get().getCosts());
             }
         } else {
-            throw new IllegalStateException();
+            throw new IllegalDrawException("Not enough money for expansion to " + city);
         }
     }
 
     private Map<City, Long> isDrawAllowed(GameRound gameRound, Set<City> extension, List<City> increase, BonusTileUsage bonusTile) {
         if (bonusTile != null && gameRound.getActualScore().getBonusTiles() == 0) {
-            throw new IllegalArgumentException("All bonus tiles are already used");
+            throw new IllegalDrawException("All bonus tiles are already used");
         }
         if (extension.size() == 1 && bonusTile == BonusTileUsage.EXTENSION) {
-            throw new IllegalArgumentException("No bonus tile needed for expansion to one city");
+            throw new IllegalDrawException("No bonus tile needed for expansion to one city");
         }
         if (extension.size() == 2 && bonusTile != BonusTileUsage.EXTENSION) {
-            throw new IllegalArgumentException("Expansion to two cities is only allowed with bonus tile");
+            throw new IllegalDrawException("Expansion to two cities is only allowed with bonus tile");
         }
         if (extension.size() > 2) {
-            throw new IllegalArgumentException("Expansion to more then two cities is not allowed");
+            throw new IllegalDrawException("Expansion to more then two cities is not allowed");
         }
         Map<City, Long> counts = increase.stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         if (counts.values().stream().noneMatch(f -> f > 1) && bonusTile == BonusTileUsage.INCREASE) {
-            throw new IllegalArgumentException("No bonus tile need for one increase per city");
+            throw new IllegalDrawException("No bonus tile need for one increase per city");
         }
         if (counts.values().stream().filter(f -> f > 1).count() == 1 && bonusTile != BonusTileUsage.INCREASE) {
-            throw new IllegalArgumentException("Increasing one city more then once per round is only allowed when using a bonus tile");
+            throw new IllegalDrawException("Increasing one city more then once per round is only allowed when using a bonus tile");
         }
         if (counts.values().stream().anyMatch(f -> f > 2)) {
-            throw new IllegalArgumentException("Increasing one city more then twice is always prohibited");
+            throw new IllegalDrawException("Increasing one city more then twice is always prohibited");
         }
         return counts;
     }
 
     private void manualDrawInitialization(GameRound gameRound, Set<City> extension) {
         if (extension.size() != 1) {
-            throw new IllegalArgumentException("In initialization phase exactly one extension is needed");
+            throw new IllegalDrawException("In initialization phase exactly one extension is needed");
         }
         City city = extension.iterator().next();
         if (!City.getTowns().contains(city)) {
-            throw new IllegalArgumentException("In initialization phase only towns are allowed");
+            throw new IllegalDrawException("In initialization phase only towns are allowed");
         }
         CityPlate plate = gameRound.getPlates().get(city);
         if (plate != null) {
-            throw new IllegalArgumentException("Can only use towns, which are not occupied so far");
+            throw new IllegalDrawException("Can only use towns, which are not occupied so far");
         }
         plate = new CityPlate(true, new ArrayList<>());
         plate.getBranches().add(gameRound.getNext());

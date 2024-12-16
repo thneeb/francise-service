@@ -10,6 +10,7 @@ import org.apache.spark.sql.types.StructType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,9 +27,10 @@ public class MachineLearningUtil {
                 .config("spark.ui.enabled", "false") // Disable Spark UI
                 .getOrCreate();
 
-        String tmpDir = System.getProperty("java.io.tmpdir");
+        String dataFile = Path.of("ml-model", "data.csv").toString();
 
-        String dataFile = tmpDir + "data.csv";
+//        String tmpDir = System.getProperty("java.io.tmpdir");
+//        String dataFile = tmpDir + "data.csv";
 
         Dataset<Row> df = spark.read()
                 .format("csv")
@@ -38,6 +40,7 @@ public class MachineLearningUtil {
 
         StructType schema = df.schema();
         String[] inputCols = schema.fieldNames();
+
         List<String> inputs = Arrays.asList(inputCols);
         inputs = new ArrayList<>(inputs);
         inputs.remove("Score");

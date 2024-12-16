@@ -1,10 +1,12 @@
 # local dev environment
 logging:
   level:
-    root: DEBUG
+#    root: DEBUG
     de.neebs.franchise.control: DEBUG
 management:
   server:
     port: 4466
 server:
   port: 8080
+  error:
+    include-message: always

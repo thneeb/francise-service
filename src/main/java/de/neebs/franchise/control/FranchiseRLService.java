@@ -41,7 +41,7 @@ public class FranchiseRLService {
         setup(true);
     }
 
-    public void setup(boolean load) {
+    void setup(boolean load) {
         manager = NDManager.newBaseManager();
         parameterStore = new ParameterStore(manager, false);
 
@@ -77,28 +77,53 @@ public class FranchiseRLService {
         return rd.getDraw();
     }
 
-    public void play(GameRound round, float epsilon) {
-        List<Learning> learnings = new ArrayList<>();
-
+    public PlayerColor play(GameRound round, Map<PlayerColor, Float> epsilons) {
+        List<GameRoundDraw> gameRoundDraws = new ArrayList<>();
         while (!round.isEnd()) {
+            float epsilon = epsilons.get(round.getActual() == null ? round.getNext() : round.getActual());
             RatedDraw bestDraw = evaluateDraw(round, epsilon);
 
-            Learning learning = Learning.builder()
+            GameRoundDraw learning = GameRoundDraw.builder()
                     .gameRound(round)
                     .draw(bestDraw.getDraw())
                     .build();
 
             round = franchiseCoreService.manualDraw(round, bestDraw.getDraw()).getGameRound();
 
-            learning.setInfluence(round.getScores().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, f -> Float.valueOf(f.getValue().getInfluence()))));
-
-            learnings.add(learning);
+            gameRoundDraws.add(learning);
         }
+
+        return learn(gameRoundDraws);
+    }
+
+    public PlayerColor learn(List<GameRoundDraw> gameRoundDraws) {
+        List<Learning> learnings = new ArrayList<>();
+        for (GameRoundDraw gameRoundDraw : gameRoundDraws) {
+            learnings.add(Learning.builder()
+                    .gameRound(gameRoundDraw.getGameRound())
+                    .draw(gameRoundDraw.getDraw())
+                    .build());
+        }
+
+        fillInfluence(learnings);
 
         buildDifferences(learnings);
 
         discountRevenues(learnings);
 
+        trainModel(learnings);
+
+        log.info("Influence: " + learnings.get(learnings.size() - 1).getInfluence());
+        return learnings.get(learnings.size() - 1).getInfluence().entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
+    }
+
+    private void fillInfluence(List<Learning> learnings) {
+        for (Learning learning : learnings) {
+            learning.setInfluence(learning.getGameRound().getScores().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, f -> Float.valueOf(f.getValue().getInfluence()))));
+        }
+    }
+
+    private void trainModel(List<Learning> learnings) {
         try (GradientCollector collector = trainer.newGradientCollector()) {
             List<Draw> outputs = createOutputDimension();
             for (Learning learning : learnings) {
@@ -123,8 +148,6 @@ public class FranchiseRLService {
                 }
             }
         }
-
-        log.info("Influence: " + learnings.get(learnings.size() - 1).getInfluence());
     }
 
     private RatedDraw evaluateDraw(GameRound round, float epsilon) {
@@ -226,7 +249,6 @@ public class FranchiseRLService {
         for (City city : City.values()) {
             result.add(Draw.builder().increase(List.of(city)).build());
         }
-//        result.add(Draw.builder().bonusTileUsage(BonusTileUsage.MONEY).build());
         return result;
     }
 

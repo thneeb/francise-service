@@ -33,6 +33,8 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 public class FranchiseController implements DefaultApi {
     private final Map<String, GameRound> games = new HashMap<>();
 
+    private final Map<String, List<GameRoundDraw>> gameRoundDraws = new HashMap<>();
+
     private final FranchiseService franchiseService;
 
     private final FranchiseMLService franchiseMLService;
@@ -81,10 +83,10 @@ public class FranchiseController implements DefaultApi {
     public ResponseEntity<ExtendedDraw> createDraw(String gameId, Draw draw) {
         GameRound round = games.get(gameId);
         if (mapPlayerColor(round.getNext()) != draw.getColor()) {
-            return ResponseEntity.badRequest().build();
+            throw new IllegalDrawException("Not your turn");
         }
         if (round.isEnd()) {
-            return ResponseEntity.badRequest().build();
+            throw new IllegalDrawException("Game is already over");
         }
         if (draw.getComputer() != null) {
             Computer computer = draw.getComputer();
@@ -92,11 +94,11 @@ public class FranchiseController implements DefaultApi {
                 draw = mapDraw(franchiseService.computerDraw(round));
             } else if (computer.getStrategy() == ComputerStrategy.BEST_MOVE) {
                 int deep = computer.getDeep() == null ? 3 : computer.getDeep();
-                List<GameRoundDraw> rounds = franchiseService.nextRounds(round, deep);
+                List<GameRoundDrawPredecessor> rounds = franchiseService.nextRounds(round, deep);
                 draw = mapDraw(franchiseService.findBestMove(rounds));
             } else if (computer.getStrategy() == ComputerStrategy.MINIMAX) {
                 int deep = computer.getDeep() == null ? 3 : computer.getDeep();
-                List<GameRoundDraw> rounds = franchiseService.nextRounds(round, deep);
+                List<GameRoundDrawPredecessor> rounds = franchiseService.nextRounds(round, deep);
                 draw = mapDraw(franchiseService.minimax(rounds, round.getNext()));
             } else if (computer.getStrategy() == ComputerStrategy.AB_PRUNE) {
                 int deep = computer.getDeep() == null ? 3 : computer.getDeep();
@@ -110,12 +112,19 @@ public class FranchiseController implements DefaultApi {
             } else if (computer.getStrategy() == ComputerStrategy.REINFORCEMENT_LEARNING) {
                 draw = mapDraw(franchiseRLService.reinforcementLearning(round));
             } else {
-                throw new IllegalArgumentException("Unknown strategy");
+                throw new IllegalDrawException("Unknown strategy");
             }
         }
         log.info("Best Move: " + draw);
 
+        gameRoundDraws.computeIfAbsent(gameId, k -> new ArrayList<>()).add(GameRoundDraw.builder().gameRound(round).draw(mapDraw(draw)).build());
+
         ExtendedGameRound extendedGameRound = franchiseCoreService.manualDraw(round, mapDraw(draw));
+
+        if (extendedGameRound.getGameRound().isEnd()) {
+            franchiseRLService.learn(gameRoundDraws.get(gameId));
+            franchiseRLService.save();
+        }
 
         games.put(gameId, extendedGameRound.getGameRound());
         ExtendedDraw extendedDraw = new ExtendedDraw();

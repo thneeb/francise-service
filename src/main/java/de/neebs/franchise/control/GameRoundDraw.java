@@ -1,16 +1,15 @@
 package de.neebs.franchise.control;
 
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 @Getter
 @Setter
 @Builder
-@EqualsAndHashCode
+@ToString
 public class GameRoundDraw {
-    private GameRoundDraw predecessor;
-    private ExtendedGameRound gameRound;
     private Draw draw;
+    private GameRound gameRound;
 }
