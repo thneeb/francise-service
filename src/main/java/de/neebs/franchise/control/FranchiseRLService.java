@@ -72,8 +72,8 @@ public class FranchiseRLService {
         trainer.initialize(new Shape(1, countInputDimension));
     }
 
-    public Draw reinforcementLearning(GameRound round) {
-        RatedDraw rd = evaluateDraw(round, 0.9f);
+    public Draw reinforcementLearning(GameRound round, float epsilon) {
+        RatedDraw rd = evaluateDraw(round, epsilon);
         return rd.getDraw();
     }
 

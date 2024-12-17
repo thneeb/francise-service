@@ -16,6 +16,7 @@ public class FranchiseCoreService {
             score.setInfluence(0);
             score.setBonusTiles(players.size() == 2 ? 4 : 3);
             score.setMoney(moneyMap.getInitialMoney().get(i));
+            score.setIncome(1);
             scores.put(players.get(i), score);
         }
         Map<City, CityPlate> cityPlates = new EnumMap<>(City.class);
@@ -81,6 +82,7 @@ public class FranchiseCoreService {
             additionalInfo.setIncome(income);
         }
         score.setMoney(score.getMoney() + income);
+        score.setIncome(income);
         if (bonusTile != null) {
             score.setBonusTiles(score.getBonusTiles() - 1);
         }
@@ -373,7 +375,7 @@ public class FranchiseCoreService {
         }
     }
 
-    public int calcIncome(GameRound gameRound, PlayerColor playerColor) {
+    int calcIncome(GameRound gameRound, PlayerColor playerColor) {
         return Rules.MONEY_MAP.get(gameRound.getPlayers().size()).getMoneyByScore(calcIncomeScore(playerColor, gameRound.getPlates()));
     }
 

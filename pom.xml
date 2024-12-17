@@ -137,14 +137,11 @@
                 <dateLibrary>legacy</dateLibrary>
                 <openApiNullable>false</openApiNullable>
                 <prependFormOrBodyParameters>true</prependFormOrBodyParameters>
+                <generateBuilders>true</generateBuilders>
+                <generateConstructorWithAllArgs>true</generateConstructorWithAllArgs>
                 <apiPackage>de.neebs.franchise.client.boundary</apiPackage>
                 <modelPackage>de.neebs.franchise.client.entity</modelPackage>
                 <invokerPackage>de.neebs.franchise.client.integration</invokerPackage>
-                <additionalModelTypeAnnotations>
-                  @lombok.Builder
-                  @lombok.NoArgsConstructor
-                  @lombok.AllArgsConstructor(access=lombok.AccessLevel.PROTECTED)
-                </additionalModelTypeAnnotations>
               </configOptions>
             </configuration>
           </execution>

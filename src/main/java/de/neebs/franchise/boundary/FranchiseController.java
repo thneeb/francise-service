@@ -13,6 +13,7 @@ import de.neebs.franchise.client.entity.CityPlate;
 import de.neebs.franchise.client.entity.Draw;
 import de.neebs.franchise.client.entity.PlayerColor;
 import de.neebs.franchise.client.entity.Region;
+import de.neebs.franchise.control.ComputerPlayer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +23,6 @@ import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static de.neebs.franchise.control.PlayerColor.BLUE;
-import static de.neebs.franchise.control.PlayerColor.RED;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
@@ -35,17 +34,13 @@ public class FranchiseController implements DefaultApi {
 
     private final Map<String, List<GameRoundDraw>> gameRoundDraws = new HashMap<>();
 
-    private final FranchiseService franchiseService;
-
-    private final FranchiseMLService franchiseMLService;
-
     private final FranchiseRLService franchiseRLService;
 
-    private final FranchiseCoreService franchiseCoreService;
+    private final GameEngine gameEngine;
 
     @Override
-    public ResponseEntity<Void> initializeGame() {
-        GameRound gameRound = franchiseCoreService.init(List.of(BLUE, RED));
+    public ResponseEntity<Void> initializeGame(GameConfig gameConfig) {
+        GameRound gameRound = gameEngine.initGame(gameConfig.getPlayers().stream().map(this::mapPlayerColor).toList());
         String uuid = UUID.randomUUID().toString();
         games.put(uuid, gameRound);
         String href = linkTo(methodOn(getClass()).retrieveGameBoard(uuid)).withSelfRel().getHref();
@@ -63,7 +58,7 @@ public class FranchiseController implements DefaultApi {
         field.setNext(mapPlayerColor(round.getNext()));
         field.setCities(round.getPlates().entrySet().stream()
                 .map(f -> CityPlate.builder()
-                        .city(City.builder().name(f.getKey().getName()).build())
+                        .city(City.valueOf(f.getKey().name()))
                         .size(f.getKey().getSize())
                         .closed(f.getValue().isClosed())
                         .branches(f.getValue().getBranches().stream().map(this::mapPlayerColor).toList())
@@ -73,7 +68,7 @@ public class FranchiseController implements DefaultApi {
                         .color(mapPlayerColor(f.getKey()))
                         .bonusTiles(f.getValue().getBonusTiles())
                         .money(f.getValue().getMoney())
-                        .income(franchiseCoreService.calcIncome(round, f.getKey()))
+                        .income(f.getValue().getIncome())
                         .influence(f.getValue().getInfluence())
                         .build()).toList());
         return ResponseEntity.ok(field);
@@ -88,38 +83,19 @@ public class FranchiseController implements DefaultApi {
         if (round.isEnd()) {
             throw new IllegalDrawException("Game is already over");
         }
-        if (draw.getComputer() != null) {
-            Computer computer = draw.getComputer();
-            if (computer.getStrategy() == ComputerStrategy.LEARNINGS) {
-                draw = mapDraw(franchiseService.computerDraw(round));
-            } else if (computer.getStrategy() == ComputerStrategy.BEST_MOVE) {
-                int deep = computer.getDeep() == null ? 3 : computer.getDeep();
-                List<GameRoundDrawPredecessor> rounds = franchiseService.nextRounds(round, deep);
-                draw = mapDraw(franchiseService.findBestMove(rounds));
-            } else if (computer.getStrategy() == ComputerStrategy.MINIMAX) {
-                int deep = computer.getDeep() == null ? 3 : computer.getDeep();
-                List<GameRoundDrawPredecessor> rounds = franchiseService.nextRounds(round, deep);
-                draw = mapDraw(franchiseService.minimax(rounds, round.getNext()));
-            } else if (computer.getStrategy() == ComputerStrategy.AB_PRUNE) {
-                int deep = computer.getDeep() == null ? 3 : computer.getDeep();
-                draw = mapDraw(franchiseService.minimaxAbPrune(round, deep).getDraw());
-            } else if (computer.getStrategy() == ComputerStrategy.DIVIDE_AND_CONQUER) {
-                int deep = computer.getDeep() == null ? 3 : computer.getDeep();
-                int slice = computer.getSlice() == null ? 3 : computer.getDeep();
-                draw = mapDraw(franchiseService.divideAndConquer(round, deep, slice));
-            } else if (computer.getStrategy() == ComputerStrategy.MACHINE_LEARNING) {
-                draw = mapDraw(franchiseMLService.machineLearning(round));
-            } else if (computer.getStrategy() == ComputerStrategy.REINFORCEMENT_LEARNING) {
-                draw = mapDraw(franchiseRLService.reinforcementLearning(round));
-            } else {
-                throw new IllegalDrawException("Unknown strategy");
-            }
+        final HumanDraw humanDraw;
+        if (draw.getPlayerType() == PlayerType.COMPUTER) {
+            final de.neebs.franchise.client.entity.ComputerPlayer computer = (de.neebs.franchise.client.entity.ComputerPlayer) draw;
+            final ComputerPlayer player = createComputerPlayer(computer);
+            humanDraw = mapDraw(mapPlayerColor(round.getNext()), player.evaluateDraw(round));
+        } else {
+            humanDraw = (HumanDraw) draw;
         }
         log.info("Best Move: " + draw);
 
-        gameRoundDraws.computeIfAbsent(gameId, k -> new ArrayList<>()).add(GameRoundDraw.builder().gameRound(round).draw(mapDraw(draw)).build());
+        gameRoundDraws.computeIfAbsent(gameId, k -> new ArrayList<>()).add(GameRoundDraw.builder().gameRound(round).draw(mapDraw(humanDraw)).build());
 
-        ExtendedGameRound extendedGameRound = franchiseCoreService.manualDraw(round, mapDraw(draw));
+        ExtendedGameRound extendedGameRound = gameEngine.makeDraw(round, mapDraw(humanDraw));
 
         if (extendedGameRound.getGameRound().isEnd()) {
             franchiseRLService.learn(gameRoundDraws.get(gameId));
@@ -128,7 +104,7 @@ public class FranchiseController implements DefaultApi {
 
         games.put(gameId, extendedGameRound.getGameRound());
         ExtendedDraw extendedDraw = new ExtendedDraw();
-        extendedDraw.setDraw(draw);
+        extendedDraw.setDraw(humanDraw);
         if (extendedGameRound.getAdditionalInfo() != null) {
             extendedDraw.setInfo(new ExtendedDrawInfo());
             extendedDraw.getInfo().setIncome(extendedGameRound.getAdditionalInfo().getIncome());
@@ -138,29 +114,37 @@ public class FranchiseController implements DefaultApi {
     }
 
     @Override
-    public ResponseEntity<List<Draw>> evaluateNextPossibleDraws(String gameId) {
+    public ResponseEntity<List<HumanDraw>> evaluateNextPossibleDraws(String gameId) {
         GameRound round = games.get(gameId);
-        return ResponseEntity.ok(franchiseCoreService.nextDraws(round).stream().map(this::mapDraw).toList());
+        return ResponseEntity.ok(gameEngine.nextPossibleDraws(round).stream().map(f -> mapDraw(mapPlayerColor(round.getNext()), f)).toList());
     }
 
     @Override
-    public ResponseEntity<List<ExtendedDraw>> playGame(String gameId, PlayConfig playConfig) {
+    public ResponseEntity<Void> playGame(String gameId, PlayConfig playConfig) {
         GameRound round = games.get(gameId);
-        int times = playConfig == null ? 1 : playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
-        boolean useLearnings = playConfig != null && playConfig.getUseLearnings() != null && playConfig.getUseLearnings();
-        franchiseService.play(round, times, useLearnings);
-        return ResponseEntity.ok(new ArrayList<>());
+        if (playConfig == null) {
+            throw new IllegalArgumentException("No config given");
+        }
+        int times = playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
+        Set<ComputerPlayer> players = playConfig.getPlayers().stream().map(this::createComputerPlayer).collect(Collectors.toSet());
+        Set<LearningModel> learningModels = playConfig.getLearningModels() == null ? Set.of() : playConfig.getLearningModels().stream().map(this::createLearningModel).collect(Collectors.toSet());
+        gameEngine.play(round, players, learningModels, playConfig.getParams(), times);
+        return ResponseEntity.ok().build();
     }
 
-    @Override
-    public ResponseEntity<String> learnGame(String gameId, PlayConfig playConfig) {
-        GameRound round = games.get(gameId);
-        int times = playConfig == null || playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
-        boolean header = playConfig != null && playConfig.getHeader() != null && playConfig.getHeader();
-        return ResponseEntity.ok(franchiseMLService.play2(round, times, header));
+    private Algorithm mapAlgorithm(ComputerStrategy strategy) {
+        return Algorithm.valueOf(strategy.name());
     }
 
-    private de.neebs.franchise.control.Draw mapDraw(Draw draw) {
+    private ComputerPlayer createComputerPlayer(de.neebs.franchise.client.entity.ComputerPlayer computer) {
+        return gameEngine.createComputerPlayer(mapAlgorithm(computer.getStrategy()), mapPlayerColor(computer.getColor()), computer.getParams());
+    }
+
+    private LearningModel createLearningModel(ComputerStrategy strategy) {
+        return gameEngine.createLearningModel(mapAlgorithm(strategy));
+    }
+
+    private de.neebs.franchise.control.Draw mapDraw(HumanDraw draw) {
         return de.neebs.franchise.control.Draw.builder()
                 .extension(draw.getExtension() == null ? new HashSet<>() : draw.getExtension().stream().map(this::mapCity).collect(Collectors.toSet()))
                 .increase(draw.getIncrease() == null ? new ArrayList<>() : draw.getIncrease().stream().map(this::mapCity).toList())
@@ -168,8 +152,9 @@ public class FranchiseController implements DefaultApi {
                 .build();
     }
 
-    private Draw mapDraw(de.neebs.franchise.control.Draw f) {
-        return Draw.builder()
+    private HumanDraw mapDraw(PlayerColor playerColor, de.neebs.franchise.control.Draw f) {
+        return HumanDraw.builder()
+                .color(playerColor)
                 .extension(f.getExtension().stream().map(this::mapCity).toList())
                 .increase(f.getIncrease().stream().map(this::mapCity).toList())
                 .bonusTileUsage(f.getBonusTileUsage() == null ? null : BonusTileUsage.valueOf(f.getBonusTileUsage().name()))
@@ -177,35 +162,22 @@ public class FranchiseController implements DefaultApi {
     }
 
     private de.neebs.franchise.control.City mapCity(City city) {
-        return Arrays.stream(de.neebs.franchise.control.City.values()).filter(f -> f.getName().equalsIgnoreCase(city.getName())).findAny().orElseThrow();
+        return Arrays.stream(de.neebs.franchise.control.City.values()).filter(f -> f.name().equalsIgnoreCase(city.name())).findAny().orElseThrow();
     }
 
     private City mapCity(de.neebs.franchise.control.City city) {
-        return City.builder().name(city.getName()).build();
+        return City.valueOf(city.name());
     }
 
     private Region mapRegion(de.neebs.franchise.control.Region region) {
-        return switch (region) {
-            case TEXAS -> Region.TEXAS;
-            case CALIFORNIA -> Region.CALIFORNIA;
-            case CENTRAL -> Region.CENTRAL;
-            case MONTANA -> Region.MONTANA;
-            case UPPER_WEST -> Region.UPPER_WEST;
-            case FLORIDA -> Region.FLORIDA;
-            case GRAND_CANYON -> Region.GRAND_CANYON;
-            case GREAT_LAKES -> Region.GREAT_LAKES;
-            case NEW_YORK -> Region.NEW_YORK;
-            case WASHINGTON -> Region.WASHINGTON;
-        };
+        return Region.valueOf(region.name());
     }
 
     private PlayerColor mapPlayerColor(de.neebs.franchise.control.PlayerColor f) {
-        return switch (f) {
-            case RED -> PlayerColor.RED;
-            case BLUE -> PlayerColor.BLUE;
-            case BLACK -> PlayerColor.BLACK;
-            case ORANGE -> PlayerColor.ORANGE;
-            case WHITE -> PlayerColor.WHITE;
-        };
+        return PlayerColor.valueOf(f.name());
+    }
+
+    private de.neebs.franchise.control.PlayerColor mapPlayerColor(PlayerColor f) {
+        return de.neebs.franchise.control.PlayerColor.valueOf(f.name());
     }
 }

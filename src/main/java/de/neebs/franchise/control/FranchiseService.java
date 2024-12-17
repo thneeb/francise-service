@@ -18,7 +18,7 @@ public class FranchiseService {
 
     private final FranchiseCoreService franchiseCoreService;
 
-    public List<GameRoundDrawPredecessor> nextRounds(GameRound gameRound, int count) {
+    private List<GameRoundDrawPredecessor> nextRounds(GameRound gameRound, int count) {
         List<GameRoundDrawPredecessor> set = List.of(GameRoundDrawPredecessor.builder().gameRound(new ExtendedGameRound(gameRound, null)).build());
         for (int i = 0; i < count && set.size() < 25000; i++) {
             List<GameRoundDrawPredecessor> intermediate = new ArrayList<>();
@@ -44,69 +44,24 @@ public class FranchiseService {
         return rounds;
     }
 
-    public void play(GameRound round, int times, boolean useLearnings) {
-        int knownStates = 0;
-        for (int i = 0; i < times; i++) {
-            int oldLearnings = learnings.size();
-            long millis = System.currentTimeMillis();
-            List<GameRoundDrawPredecessor> list = play(round, useLearnings);
-            log.info("Iteration: " + i + ", Learnings: " + learnings.size() + ", Game length: " + list.size() + ", Learning Diff: " + (learnings.size() - oldLearnings) + ", known states: " + (list.size() + oldLearnings - learnings.size()) + ", elapsed time: " + (System.currentTimeMillis() - millis));
-            knownStates += (list.size() + oldLearnings - learnings.size());
-        }
-        log.info("Average known states: " + knownStates / times);
-    }
-
-    public List<GameRoundDrawPredecessor> play(GameRound round, boolean useLearnings) {
-        List<GameRoundDrawPredecessor> list = new ArrayList<>();
-        while (!round.isEnd()) {
-            List<Draw> draws = franchiseCoreService.nextDraws(round);
-            int random;
-            if (draws.size() > 1) {
-                random = RANDOM.nextInt(draws.size() - 1) + 1;
-            } else {
-                random = 0;
-            }
-            Draw draw;
-            if (useLearnings) {
-                draw = filterDrawsByLearnings(round, draws).orElse(draws.get(random));
-            } else {
-                draw = draws.get(random);
-            }
-            list.add(GameRoundDrawPredecessor.builder().gameRound(new ExtendedGameRound(round, null)).draw(draw).build());
-            round = franchiseCoreService.manualDraw(round, draw).getGameRound();
-        }
-        Map<PlayerColor, Integer> score = franchiseCoreService.score(round.getScores());
-        for (GameRoundDrawPredecessor grd : list) {
-            learn(grd.getGameRound().getGameRound(), grd.getDraw(), score);
-        }
-        return list;
-    }
-
-    public Optional<Draw> filterDrawsByLearnings(GameRound round, List<Draw> draws) {
-        Map<Draw, List<Integer>> map = learnings.get(round);
-        if (map == null) {
+    private Optional<Draw> filterDrawsByLearnings(GameRound round, List<Draw> draws, Map<Draw, List<Integer>> learnings, float epsilon) {
+        if (learnings == null) {
             return Optional.empty();
         }
         List<Draw> bestDraws = draws.stream()
-                .filter(f -> map.get(f) != null)
-                .collect(Collectors.toMap(Function.identity(), f -> map.get(f).stream().mapToInt(g -> g).average().orElseThrow()))
+                .filter(f -> learnings.get(f) != null)
+                .collect(Collectors.toMap(Function.identity(), f -> learnings.get(f).stream().mapToInt(g -> g).average().orElseThrow()))
                 .entrySet().stream().sorted((o1, o2) -> -Double.compare(o1.getValue(), o2.getValue()))
                 .map(Map.Entry::getKey).toList();
         if (bestDraws.isEmpty()) {
             return Optional.empty();
         }
-        if (RANDOM.nextDouble(1) < 0.9) {
+        if (RANDOM.nextDouble(1) < epsilon) {
             log.info("Hit " + round.getRound());
             return Optional.of(bestDraws.get(RANDOM.nextInt(Math.min(bestDraws.size(), 6))));
         } else {
             return Optional.empty();
         }
-    }
-
-    private void learn(GameRound gameRound, Draw draw, Map<PlayerColor, Integer> playerScores) {
-        Map<Draw, List<Integer>> map = learnings.computeIfAbsent(gameRound, k -> new HashMap<>());
-        List<Integer> list = map.computeIfAbsent(draw, k -> new ArrayList<>());
-        list.add(playerScores.get(gameRound.getNext()));
     }
 
     int openPlates(GameRound round) {
@@ -142,19 +97,20 @@ public class FranchiseService {
         }
     }
 
-    public Draw minimax(List<GameRoundDrawPredecessor> rounds, PlayerColor playerColor) {
+    public Draw minimax(GameRound round, int depth) {
+        List<GameRoundDrawPredecessor> rounds = nextRounds(round, depth);
         Map<GameRoundDrawPredecessor, Map<PlayerColor, Integer>> scores = score(rounds);
         Map<GameRoundDrawPredecessor, GameRoundDrawPredecessor> bestMoves = new HashMap<>();
         while (scores.size() > 1) {
             Map<GameRoundDrawPredecessor, Optional<Map.Entry<GameRoundDrawPredecessor, Map<PlayerColor, Integer>>>> scores2;
-            if (scores.entrySet().iterator().next().getKey().getGameRound().getGameRound().getActual() == playerColor) {
+            if (scores.entrySet().iterator().next().getKey().getGameRound().getGameRound().getActual() == round.getNext()) {
                 scores2 = scores.entrySet().stream().collect(
                         Collectors.groupingBy(f -> f.getKey().getPredecessor(),
-                                Collectors.reducing((a, b) -> a.getValue().get(playerColor) > b.getValue().get(playerColor) ? a : b)));
+                                Collectors.reducing((a, b) -> a.getValue().get(round.getNext()) > b.getValue().get(round.getNext()) ? a : b)));
             } else {
                 scores2 = scores.entrySet().stream().collect(
                         Collectors.groupingBy(f -> f.getKey().getPredecessor(),
-                                Collectors.reducing((a, b) -> a.getValue().get(playerColor) < b.getValue().get(playerColor) ? a : b)));
+                                Collectors.reducing((a, b) -> a.getValue().get(round.getNext()) < b.getValue().get(round.getNext()) ? a : b)));
             }
             scores = scores2.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, f -> f.getValue().orElseThrow().getValue()));
             bestMoves = scores2.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, f -> f.getValue().orElseThrow().getKey()));
@@ -162,7 +118,8 @@ public class FranchiseService {
         return bestMoves.values().iterator().next().getDraw();
     }
 
-    public Draw findBestMove(List<GameRoundDrawPredecessor> rounds) {
+    public Draw findBestMove(GameRound round, int deep) {
+        List<GameRoundDrawPredecessor> rounds = nextRounds(round, deep);
         Map<GameRoundDrawPredecessor, Map<PlayerColor, Integer>> scores = score(rounds);
         Map<GameRoundDrawPredecessor, GameRoundDrawPredecessor> bestMoves = new HashMap<>();
         while (scores.size() > 1) {
@@ -185,9 +142,13 @@ public class FranchiseService {
         return map;
     }
 
-    public Draw computerDraw(GameRound gameRound) {
+    public Draw computerDraw(GameRound gameRound, Map<Draw, List<Integer>> learnings, float epsilon) {
         List<Draw> draws = franchiseCoreService.nextDraws(gameRound);
-        return filterDrawsByLearnings(gameRound, draws).orElse(draws.get(RANDOM.nextInt(draws.size())));
+        if (learnings == null || learnings.isEmpty()) {
+            return draws.get(RANDOM.nextInt(draws.size()));
+        } else {
+            return filterDrawsByLearnings(gameRound, draws, learnings, epsilon).orElse(draws.get(RANDOM.nextInt(draws.size())));
+        }
     }
 
     private List<Draw> filterAndSortDraws(GameRound round, List<Draw> draws) {
@@ -201,17 +162,17 @@ public class FranchiseService {
         return draws.stream().sorted((o1, o2) -> Boolean.compare(o2.isBonusTile(), o1.isBonusTile())).toList();
     }
 
-    public ScoredDraw minimaxAbPrune(GameRound round, int deep) {
+    public Draw minimaxAbPrune(GameRound round, int deep) {
         Map<PlayerColor, Integer> alpha = new EnumMap<>(PlayerColor.class);
         Map<PlayerColor, Integer> beta = new EnumMap<>(PlayerColor.class);
         for (PlayerColor color : round.getPlayers()) {
             alpha.put(color, -10000);
             beta.put(color, 10000);
         }
-        return minimaxAbPrune2(round, round.getNext(), deep, alpha, beta, new HashMap<>(), null);
+        return minimaxAbPrune2(round, round.getNext(), deep, alpha, beta, new HashMap<>(), null).getDraw();
     }
 
-    public ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int deep, Map<PlayerColor, Integer> alpha, Map<PlayerColor, Integer> beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
+    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int deep, Map<PlayerColor, Integer> alpha, Map<PlayerColor, Integer> beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
         if (deep == 0 || round.isEnd()) {
             int score = evaluatePosition(round, actual);
             return ScoredDraw.builder().gameRound(round).score(score).build();
@@ -264,7 +225,7 @@ public class FranchiseService {
         }
     }
 
-    public ScoredDraw minimaxAbPrune(GameRound round, PlayerColor actual, int deep, int alpha, int beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
+    private ScoredDraw minimaxAbPrune(GameRound round, PlayerColor actual, int deep, int alpha, int beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
         if (deep == 0 || round.isEnd()) {
             int score = evaluatePosition(round, actual);
 //            score = round.getNext() == actual ? -score : score;

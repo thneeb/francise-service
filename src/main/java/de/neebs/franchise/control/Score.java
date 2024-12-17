@@ -16,6 +16,7 @@ public class Score {
     private int money;
     private int influence;
     private int bonusTiles;
+    private int income;
     private Set<City> expansions = new HashSet<>();
 
     public static Score copy(Score value) {
@@ -23,6 +24,7 @@ public class Score {
         score.setBonusTiles(value.getBonusTiles());
         score.setInfluence(value.getInfluence());
         score.setMoney(value.getMoney());
+        score.setIncome(value.getIncome());
         score.setExpansions(new HashSet<>(value.getExpansions()));
         return score;
     }
