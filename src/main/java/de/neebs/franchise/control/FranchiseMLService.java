@@ -4,11 +4,21 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import org.apache.spark.ml.feature.VectorAssembler;
 import org.apache.spark.ml.linalg.Vector;
 import org.apache.spark.ml.linalg.Vectors;
+import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.StructType;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 
 @Service
@@ -18,47 +28,51 @@ public class FranchiseMLService {
 
     private final FranchiseCoreService franchiseCoreService;
 
-    private final LinearRegressionModel regressionModel;
+    private final List<List<Integer>> unsavedTrainingData = new ArrayList<>();
 
-    public String play2(GameRound round, int times, boolean header) {
-        StringBuilder sb = new StringBuilder();
-        if (header) {
-            sb.append(String.join(",", createHeader()));
-            sb.append(System.lineSeparator());
-        }
-        for (int i = 0; i < times; i++) {
-            Map<GameRound, Integer> map = play2(round);
-            for (Map.Entry<GameRound, Integer> entry : map.entrySet()) {
-                List<Integer> run = createVectorizedBoard(entry.getKey(), true);
-                run.add(entry.getValue());
-                sb.append(String.join(",", run.stream().map(String::valueOf).toList()));
-                sb.append(System.lineSeparator());
-            }
-        }
-        return new String(sb);
-    }
+    private LinearRegressionModel regressionModel;
 
-    public Map<GameRound, Integer> play2(GameRound round) {
-        List<GameRound> rounds = new ArrayList<>();
-        rounds.add(round);
-        while (!round.isEnd()) {
-            List<Draw> draws = franchiseCoreService.nextDraws(round);
-            int random;
-            if (draws.size() > 1) {
-                random = RANDOM.nextInt(draws.size() - 1) + 1;
-            } else {
-                random = 0;
-            }
-            Draw draw = draws.get(random);
-            round = franchiseCoreService.manualDraw(round, draw).getGameRound();
-            rounds.add(round);
+    public void init() {
+        if (regressionModel != null) {
+            return;
         }
-        Map<GameRound, Integer> map = new HashMap<>();
-        Map<PlayerColor, Integer> score = franchiseCoreService.score(round.getScores());
-        for (GameRound gr : rounds) {
-            map.put(gr, score.get(gr.getActual() == null ? gr.getNext() : gr.getActual()));
+        SparkSession spark = SparkSession.builder()
+                .appName("Franchise ML Example")
+                .master("local[*]")
+                .config("spark.driver.extraJavaOptions", "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED")
+                .config("spark.executor.extraJavaOptions", "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --conf spark.dynamicAllocation.enabled=false")
+                .config("spark.ui.enabled", "false") // Disable Spark UI
+                .getOrCreate();
+
+        String dataFile = Path.of("ml-model", "data.csv").toString();
+
+        Dataset<Row> df = spark.read()
+                .format("csv")
+                .option("header", "true")
+                .option("inferSchema", "true")
+                .load(dataFile);
+
+        StructType schema = df.schema();
+        String[] inputCols = schema.fieldNames();
+
+        List<String> inputs = Arrays.asList(inputCols);
+        inputs = new ArrayList<>(inputs);
+        inputs.remove("Score");
+        for (PlayerColor pc : PlayerColor.values()) {
+            inputs.removeIf(f -> f.startsWith(pc.name()));
         }
-        return map;
+        inputCols = inputs.toArray(new String[0]);
+
+        VectorAssembler assembler = new VectorAssembler()
+                .setInputCols(inputCols)
+                .setOutputCol("features");
+
+        Dataset<Row> vectorData = assembler.transform(df);
+
+        // Create and train the model
+        LinearRegression lr = new LinearRegression().setFeaturesCol("features").setLabelCol("Score");
+        regressionModel = lr.train(vectorData);
+        spark.close();
     }
 
     public List<String> createHeader() {
@@ -113,7 +127,9 @@ public class FranchiseMLService {
         return result;
     }
 
-    public Draw machineLearning(GameRound round) {
+    public Draw machineLearning(GameRound round, int range) {
+        init();
+
         List<Draw> draws = franchiseCoreService.nextDraws(round);
         List<RatedDraw> ratedDraws = new ArrayList<>();
         for (Draw draw : draws) {
@@ -125,8 +141,42 @@ public class FranchiseMLService {
             ratedDraws.add(RatedDraw.builder().draw(draw).rating(value).build());
         }
         ratedDraws.sort(Comparator.comparing(RatedDraw::getRating).reversed());
-        int maxIndex = Math.min(ratedDraws.size(), 3);
+        int maxIndex = Math.min(ratedDraws.size(), range);
         return ratedDraws.get(RANDOM.nextInt(maxIndex)).getDraw();
+    }
+
+    public void train(List<GameRoundDraw> gameRoundDraws) {
+        init();
+
+        GameRound round = gameRoundDraws.get(gameRoundDraws.size() - 1).getGameRound();
+        Map<GameRound, Integer> map = new HashMap<>();
+        Map<PlayerColor, Integer> score = franchiseCoreService.score(round.getScores());
+        for (GameRoundDraw gr : gameRoundDraws) {
+            map.put(gr.getGameRound(), score.get(gr.getGameRound().getActual() == null ? gr.getGameRound().getNext() : gr.getGameRound().getActual()));
+        }
+
+        for (Map.Entry<GameRound, Integer> entry : map.entrySet()) {
+            List<Integer> run = createVectorizedBoard(entry.getKey(), true);
+            run.add(entry.getValue());
+            unsavedTrainingData.add(run);
+        }
+    }
+
+    public void save() {
+        init();
+
+        List<String> list = new ArrayList<>();
+        for (List<Integer> data : unsavedTrainingData) {
+            list.add(String.join(",", data.stream().map(String::valueOf).toList()));
+        }
+
+        try {
+            Files.write(Path.of("ml-model", "data.csv"), list, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+
+        unsavedTrainingData.clear();
     }
 
     @Getter

@@ -113,7 +113,7 @@ class Rules {
             new Connection(Set.of(City.OGALLALA, City.SIOUX_FALLS), 1)
     );
 
-    public static final Map<Integer, MoneyMap> MONEY_MAP = Map.of(
+    private static final Map<Integer, MoneyMap> MONEY_MAP = Map.of(
             2, new MoneyMap(7)
                     .addEarn(0, 3, 1)
                     .addEarn(4, 10, 2)
@@ -148,5 +148,23 @@ class Rules {
                     .addInitial(3).addInitial(4).addInitial(5).addInitial(7).addInitial(9)
     );
 
+    public static Map<PlayerColor, Score> initScores(List<PlayerColor> players) {
+        MoneyMap moneyMap = MONEY_MAP.get(players.size());
+        Map<PlayerColor, Score> scores = new EnumMap<>(PlayerColor.class);
+        for (int i = 0; i < players.size() && i < moneyMap.getInitialMoney().size(); i++) {
+            Score score = new Score();
+            score.setInfluence(0);
+            score.setBonusTiles(players.size() == 2 ? 4 : 3);
+            score.setMoney(moneyMap.getInitialMoney().get(i));
+            score.setIncome(1);
+            scores.put(players.get(i), score);
+        }
+        return scores;
+    }
+
     private Rules() {}
+
+    public static int calcIncome(int playerCount, int freeBranches) {
+        return MONEY_MAP.get(playerCount).getMoneyByScore(freeBranches);
+    }
 }

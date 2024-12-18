@@ -16,6 +16,7 @@ import de.neebs.franchise.client.entity.Region;
 import de.neebs.franchise.control.ComputerPlayer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -34,22 +35,30 @@ public class FranchiseController implements DefaultApi {
 
     private final Map<String, List<GameRoundDraw>> gameRoundDraws = new HashMap<>();
 
-    private final FranchiseRLService franchiseRLService;
-
     private final GameEngine gameEngine;
+    private final Map<String, Set<ComputerStrategy>> learningAlgorithms = new HashMap<>();
 
     @Override
-    public ResponseEntity<Void> initializeGame(GameConfig gameConfig) {
-        GameRound gameRound = gameEngine.initGame(gameConfig.getPlayers().stream().map(this::mapPlayerColor).toList());
+    public ResponseEntity<GameField> initializeGame(GameConfig gameConfig) {
+        List<de.neebs.franchise.control.PlayerColor> players = gameConfig.getPlayers().stream().map(this::mapPlayerColor).toList();
+        Set<ComputerStrategy> algorithms = gameConfig.getLearningModels() == null ? Set.of() : new HashSet<>(gameConfig.getLearningModels());
+        GameRound round = gameEngine.initGame(players);
         String uuid = UUID.randomUUID().toString();
-        games.put(uuid, gameRound);
+        games.put(uuid, round);
+        learningAlgorithms.put(uuid, algorithms);
         String href = linkTo(methodOn(getClass()).retrieveGameBoard(uuid)).withSelfRel().getHref();
-        return ResponseEntity.created(URI.create(href)).build();
+        GameField field = mapGameField(round);
+        return ResponseEntity.created(URI.create(href)).body(field);
     }
 
     @Override
     public ResponseEntity<GameField> retrieveGameBoard(String gameId) {
         GameRound round = games.get(gameId);
+        GameField field = mapGameField(round);
+        return ResponseEntity.ok(field);
+    }
+
+    private @NotNull GameField mapGameField(GameRound round) {
         GameField field = new GameField();
         field.setEnd(round.isEnd());
         field.setFirstCities(round.getFirstCityScorers().entrySet().stream()
@@ -71,7 +80,7 @@ public class FranchiseController implements DefaultApi {
                         .income(f.getValue().getIncome())
                         .influence(f.getValue().getInfluence())
                         .build()).toList());
-        return ResponseEntity.ok(field);
+        return field;
     }
 
     @Override
@@ -98,8 +107,11 @@ public class FranchiseController implements DefaultApi {
         ExtendedGameRound extendedGameRound = gameEngine.makeDraw(round, mapDraw(humanDraw));
 
         if (extendedGameRound.getGameRound().isEnd()) {
-            franchiseRLService.learn(gameRoundDraws.get(gameId));
-            franchiseRLService.save();
+            for (ComputerStrategy strategy : learningAlgorithms.get(gameId)) {
+                LearningModel model = gameEngine.createLearningModel(mapAlgorithm(strategy));
+                model.train(gameRoundDraws.get(gameId));
+                model.save();
+            }
         }
 
         games.put(gameId, extendedGameRound.getGameRound());
@@ -120,7 +132,7 @@ public class FranchiseController implements DefaultApi {
     }
 
     @Override
-    public ResponseEntity<Void> playGame(String gameId, PlayConfig playConfig) {
+    public ResponseEntity<List<PlayerColorAndInteger>> playGame(String gameId, PlayConfig playConfig) {
         GameRound round = games.get(gameId);
         if (playConfig == null) {
             throw new IllegalArgumentException("No config given");
@@ -128,8 +140,7 @@ public class FranchiseController implements DefaultApi {
         int times = playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
         Set<ComputerPlayer> players = playConfig.getPlayers().stream().map(this::createComputerPlayer).collect(Collectors.toSet());
         Set<LearningModel> learningModels = playConfig.getLearningModels() == null ? Set.of() : playConfig.getLearningModels().stream().map(this::createLearningModel).collect(Collectors.toSet());
-        gameEngine.play(round, players, learningModels, playConfig.getParams(), times);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(mapResult(gameEngine.play(round, players, learningModels, playConfig.getParams(), times)));
     }
 
     private Algorithm mapAlgorithm(ComputerStrategy strategy) {
@@ -179,5 +190,10 @@ public class FranchiseController implements DefaultApi {
 
     private de.neebs.franchise.control.PlayerColor mapPlayerColor(PlayerColor f) {
         return de.neebs.franchise.control.PlayerColor.valueOf(f.name());
+    }
+
+    private List<PlayerColorAndInteger> mapResult(Map<de.neebs.franchise.control.PlayerColor, Integer> results) {
+        return results.entrySet().stream().map(f ->
+                PlayerColorAndInteger.builder().color(mapPlayerColor(f.getKey())).value(f.getValue()).build()).toList();
     }
 }

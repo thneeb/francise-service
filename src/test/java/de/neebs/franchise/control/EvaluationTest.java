@@ -46,7 +46,7 @@ class EvaluationTest {
     void evaluateGamePhase2PlayerStartTest() {
         FranchiseService service = new FranchiseService(franchiseCoreService);
         GameRound round = franchiseCoreService.init(List.of(PlayerColor.BLUE, PlayerColor.RED, PlayerColor.BLACK));
-        Assertions.assertEquals(GamePhase.START, service.evaluateGamePhase(round));
+        Assertions.assertEquals(FranchiseService.GamePhase.START, service.evaluateGamePhase(round));
     }
 
 }

@@ -7,8 +7,7 @@ import org.junit.jupiter.api.Test;
 class MachineLearningTest {
     @Test
     void test() {
-        MachineLearningUtil util = new MachineLearningUtil();
-        FranchiseMLService service = new FranchiseMLService(new FranchiseCoreService(), null);
+        FranchiseMLService service = new FranchiseMLService(new FranchiseCoreService());
         log.info(String.join(",", service.createHeader()));
     }
 }

@@ -11,7 +11,6 @@ import ai.djl.nn.core.Linear;
 import ai.djl.training.*;
 import ai.djl.training.loss.Loss;
 import ai.djl.training.optimizer.Optimizer;
-import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,12 +35,11 @@ public class FranchiseRLService {
 
     private Trainer trainer;
 
-    @PostConstruct
-    public void init() {
-        setup(true);
-    }
-
     void setup(boolean load) {
+        if (manager != null) {
+            return;
+        }
+
         manager = NDManager.newBaseManager();
         parameterStore = new ParameterStore(manager, false);
 
@@ -73,30 +71,15 @@ public class FranchiseRLService {
     }
 
     public Draw reinforcementLearning(GameRound round, float epsilon) {
+        setup(true);
+
         RatedDraw rd = evaluateDraw(round, epsilon);
         return rd.getDraw();
     }
 
-    public PlayerColor play(GameRound round, Map<PlayerColor, Float> epsilons) {
-        List<GameRoundDraw> gameRoundDraws = new ArrayList<>();
-        while (!round.isEnd()) {
-            float epsilon = epsilons.get(round.getActual() == null ? round.getNext() : round.getActual());
-            RatedDraw bestDraw = evaluateDraw(round, epsilon);
-
-            GameRoundDraw learning = GameRoundDraw.builder()
-                    .gameRound(round)
-                    .draw(bestDraw.getDraw())
-                    .build();
-
-            round = franchiseCoreService.manualDraw(round, bestDraw.getDraw()).getGameRound();
-
-            gameRoundDraws.add(learning);
-        }
-
-        return learn(gameRoundDraws);
-    }
-
     public PlayerColor learn(List<GameRoundDraw> gameRoundDraws) {
+        setup(true);
+
         List<Learning> learnings = new ArrayList<>();
         for (GameRoundDraw gameRoundDraw : gameRoundDraws) {
             learnings.add(Learning.builder()
@@ -111,9 +94,10 @@ public class FranchiseRLService {
 
         discountRevenues(learnings);
 
+        learnings.remove(learnings.size() - 1);
+
         trainModel(learnings);
 
-        log.info("Influence: " + learnings.get(learnings.size() - 1).getInfluence());
         return learnings.get(learnings.size() - 1).getInfluence().entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
     }
 
@@ -304,6 +288,8 @@ public class FranchiseRLService {
     }
 
     public void save() {
+        setup(true);
+
         try {
             trainer.getModel().save(Path.of("rl-model"), "rl-model");
         } catch (IOException e) {

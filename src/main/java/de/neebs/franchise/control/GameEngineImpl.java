@@ -1,21 +1,23 @@
 package de.neebs.franchise.control;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GameEngineImpl implements GameEngine {
     private final FranchiseService franchiseService;
 
     private final FranchiseRLService franchiseRLService;
 
     private final FranchiseCoreService franchiseCoreService;
+
+    private final FranchiseMLService franchiseMLService;
 
     private final InMemoryMonteCarloLearningModel inMemoryMonteCarloLearningModel;
 
@@ -29,6 +31,19 @@ public class GameEngineImpl implements GameEngine {
         @Override
         public Draw evaluateDraw(GameRound round) {
             return franchiseRLService.reinforcementLearning(round, getFloat(getParams().get(EPSILON), 0.9f));
+        }
+    }
+
+    private class MachineLearningComputerPlayer extends AbstractComputerPlayer {
+        public static final String RANGE = "range";
+
+        MachineLearningComputerPlayer(PlayerColor playerColor, Map<String, Object> params) {
+            super(playerColor, params);
+        }
+
+        @Override
+        public Draw evaluateDraw(GameRound round) {
+            return franchiseMLService.machineLearning(round, getParams().get(RANGE) == null ? 3 : (Integer)getParams().get(RANGE));
         }
     }
 
@@ -116,6 +131,18 @@ public class GameEngineImpl implements GameEngine {
         }
     }
 
+    private class MachineLearningModel implements LearningModel {
+        @Override
+        public void train(List<GameRoundDraw> gameRoundDraws) {
+            franchiseMLService.train(gameRoundDraws);
+        }
+
+        @Override
+        public void save() {
+            franchiseMLService.save();
+        }
+    }
+
     private class ReinforcementLearningModel implements LearningModel {
         @Override
         public void train(List<GameRoundDraw> gameRoundDraws) {
@@ -137,16 +164,21 @@ public class GameEngineImpl implements GameEngine {
     public ComputerPlayer createComputerPlayer(Algorithm algorithm, PlayerColor playerColor, Map<String, Object> params) {
         if (algorithm == Algorithm.REINFORCEMENT_LEARNING) {
             return new RLComputerPlayer(playerColor, params);
+        } else if (algorithm == Algorithm.MACHINE_LEARNING) {
+            return new MachineLearningComputerPlayer(playerColor, params);
         } else if (algorithm == Algorithm.MINIMAX) {
             return new MiniMaxComputerPlayer(playerColor, params);
         } else if (algorithm == Algorithm.MINIMAX_AB_PRUNE) {
             return new MinimaxAbPruneComputerPlayer(playerColor, params);
-        }else if (algorithm == Algorithm.DIVIDE_AND_CONQUER) {
+        } else if (algorithm == Algorithm.DIVIDE_AND_CONQUER) {
             return new DivideAndConquerComputerPlayer(playerColor, params);
         } else if (algorithm == Algorithm.FIND_BEST_MOVE) {
             return new FindBestDrawComputerPlayer(playerColor, params);
+        } else if (algorithm == Algorithm.MONTE_CARLO) {
+            return new MonteCarloComputerPlayer(playerColor, params);
+        } else {
+            throw new IllegalArgumentException("Unknown algorithm");
         }
-        return null;
     }
 
     @Override
@@ -155,21 +187,31 @@ public class GameEngineImpl implements GameEngine {
             return new MonteCarloLearningModel();
         } else if (algorithm == Algorithm.REINFORCEMENT_LEARNING) {
             return new ReinforcementLearningModel();
+        } else if (algorithm == Algorithm.MACHINE_LEARNING){
+            return new MachineLearningModel();
+        } else {
+            throw new IllegalArgumentException("Unknown algorithm");
         }
-        return null;
     }
 
     @Override
-    public void play(GameRound round, Set<ComputerPlayer> players, Set<LearningModel> learningModels, Map<String, Object> params, int times) {
+    public Map<PlayerColor, Integer> play(GameRound round, Set<ComputerPlayer> players, Set<LearningModel> learningModels, Map<String, Object> params, int times) {
+        Map<PlayerColor, Integer> result = new EnumMap<>(PlayerColor.class);
         for (int i = 0; i < times; i++) {
             List<GameRoundDraw> grds = play(round, players);
+            Map<PlayerColor, Integer> map = grds.get(grds.size() - 1).getGameRound().getScores().entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, f -> f.getValue().getInfluence()));
+            log.info("Result: {}: {}", i, map);
             for (LearningModel learningModel : learningModels) {
                 learningModel.train(grds);
             }
+            PlayerColor winner = map.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
+            result.put(winner, result.getOrDefault(winner, 0) + 1);
         }
         for (LearningModel learningModel : learningModels) {
             learningModel.save();
         }
+        return result;
     }
 
     @Override
@@ -182,6 +224,7 @@ public class GameEngineImpl implements GameEngine {
             grds.add(GameRoundDraw.builder().gameRound(round).draw(draw).build());
             round = makeDraw(round, draw).getGameRound();
         }
+        grds.add(GameRoundDraw.builder().gameRound(round).draw(null).build());
 
         return grds;
     }

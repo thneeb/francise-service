@@ -9,16 +9,7 @@ import java.util.stream.Collectors;
 @Service
 public class FranchiseCoreService {
     public GameRound init(List<PlayerColor> players) {
-        MoneyMap moneyMap = Rules.MONEY_MAP.get(players.size());
-        Map<PlayerColor, Score> scores = new EnumMap<>(PlayerColor.class);
-        for (int i = 0; i < players.size() && i < moneyMap.getInitialMoney().size(); i++) {
-            Score score = new Score();
-            score.setInfluence(0);
-            score.setBonusTiles(players.size() == 2 ? 4 : 3);
-            score.setMoney(moneyMap.getInitialMoney().get(i));
-            score.setIncome(1);
-            scores.put(players.get(i), score);
-        }
+        Map<PlayerColor, Score> scores = Rules.initScores(players);
         Map<City, CityPlate> cityPlates = new EnumMap<>(City.class);
         List<Region> regionScores = new ArrayList<>();
         if (players.size() == 2) {
@@ -73,18 +64,13 @@ public class FranchiseCoreService {
     private void manualDrawStandard(GameRound gameRound, Set<City> extension, List<City> increase, BonusTileUsage bonusTile, AdditionalInfo additionalInfo) {
         Map<City, Long> counts = isDrawAllowed(gameRound, extension, increase, bonusTile);
         Score score = gameRound.getActualScore();
-        int income = calcIncome(gameRound, gameRound.getActual());
-        if (bonusTile == BonusTileUsage.MONEY) {
-            income += 10;
-        }
-        if (additionalInfo != null) {
-            additionalInfo.setMoney(score.getMoney());
-            additionalInfo.setIncome(income);
-        }
-        score.setMoney(score.getMoney() + income);
-        score.setIncome(income);
+        score.setIncome(calcIncome(gameRound, gameRound.getActual()));
+        score.setMoney(score.getMoney() + score.getIncome());
         if (bonusTile != null) {
             score.setBonusTiles(score.getBonusTiles() - 1);
+        }
+        if (bonusTile == BonusTileUsage.MONEY) {
+            score.setMoney(score.getMoney() + 10);
         }
 
         for (City city : extension) {
@@ -107,6 +93,10 @@ public class FranchiseCoreService {
         openFranchise(gameRound);
         scoreCities(gameRound, additionalInfo);
         scoreRegions(gameRound, additionalInfo);
+        if (additionalInfo != null) {
+            additionalInfo.setMoney(score.getMoney());
+            additionalInfo.setIncome(calcIncome(gameRound, gameRound.getActual()));
+        }
     }
 
     void scoreRegions(GameRound gameRound, AdditionalInfo additionalInfo) {
@@ -376,7 +366,7 @@ public class FranchiseCoreService {
     }
 
     int calcIncome(GameRound gameRound, PlayerColor playerColor) {
-        return Rules.MONEY_MAP.get(gameRound.getPlayers().size()).getMoneyByScore(calcIncomeScore(playerColor, gameRound.getPlates()));
+        return Rules.calcIncome(gameRound.getPlayers().size(), calcIncomeScore(playerColor, gameRound.getPlates()));
     }
 
     int calcIncomeScore(PlayerColor playerColor, Map<City, CityPlate> plates) {

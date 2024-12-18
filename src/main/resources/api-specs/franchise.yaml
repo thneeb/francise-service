@@ -16,7 +16,11 @@ paths:
               $ref: '#/components/schemas/GameConfig'
       responses:
         '201':
-          description: Game executing
+          description: Returns the actual game field for the given id
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/GameField'
   /franchise/{gameId}:
     parameters:
       -
@@ -83,8 +87,14 @@ paths:
             schema:
               $ref: '#/components/schemas/PlayConfig'
       responses:
-        '204':
+        '200':
           description: Returns the played draw
+          content:
+            'application/json':
+              schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PlayerColorAndInteger'
 components:
   schemas:
     ExtendedDraw:
@@ -205,6 +215,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlayerColor'
+        learningModels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComputerStrategy'
     PlayConfig:
       properties:
         timesToPlay:
@@ -220,6 +234,12 @@ components:
         params:
           additionalProperties:
             type: object
+    PlayerColorAndInteger:
+      properties:
+        color:
+          $ref: '#/components/schemas/PlayerColor'
+        value:
+          type: integer
     BonusTileUsage:
       enum:
         - MONEY

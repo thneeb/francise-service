@@ -1,6 +1,6 @@
 package de.neebs.franchise.control;
 
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -118,8 +118,8 @@ public class FranchiseService {
         return bestMoves.values().iterator().next().getDraw();
     }
 
-    public Draw findBestMove(GameRound round, int deep) {
-        List<GameRoundDrawPredecessor> rounds = nextRounds(round, deep);
+    public Draw findBestMove(GameRound round, int depth) {
+        List<GameRoundDrawPredecessor> rounds = nextRounds(round, depth);
         Map<GameRoundDrawPredecessor, Map<PlayerColor, Integer>> scores = score(rounds);
         Map<GameRoundDrawPredecessor, GameRoundDrawPredecessor> bestMoves = new HashMap<>();
         while (scores.size() > 1) {
@@ -162,18 +162,18 @@ public class FranchiseService {
         return draws.stream().sorted((o1, o2) -> Boolean.compare(o2.isBonusTile(), o1.isBonusTile())).toList();
     }
 
-    public Draw minimaxAbPrune(GameRound round, int deep) {
+    public Draw minimaxAbPrune(GameRound round, int depth) {
         Map<PlayerColor, Integer> alpha = new EnumMap<>(PlayerColor.class);
         Map<PlayerColor, Integer> beta = new EnumMap<>(PlayerColor.class);
         for (PlayerColor color : round.getPlayers()) {
             alpha.put(color, -10000);
             beta.put(color, 10000);
         }
-        return minimaxAbPrune2(round, round.getNext(), deep, alpha, beta, new HashMap<>(), null).getDraw();
+        return minimaxAbPrune2(round, round.getNext(), depth, alpha, beta, new HashMap<>(), null).getDraw();
     }
 
-    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int deep, Map<PlayerColor, Integer> alpha, Map<PlayerColor, Integer> beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
-        if (deep == 0 || round.isEnd()) {
+    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int depth, Map<PlayerColor, Integer> alpha, Map<PlayerColor, Integer> beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
+        if (depth == 0 || round.isEnd()) {
             int score = evaluatePosition(round, actual);
             return ScoredDraw.builder().gameRound(round).score(score).build();
         }
@@ -182,13 +182,9 @@ public class FranchiseService {
         ScoredDraw bestMove = null;
         for (Draw draw : filterAndSortDraws(round, franchiseCoreService.nextDraws(round))) {
             GameRound newBoard = franchiseCoreService.manualDraw(round, draw).getGameRound();
-            if (scoredDraws != null) {
-                log.info("Analyzing draw: " + draw);
-            }
-
             final ScoredDraw scoredDraw;
             if (savedScores.get(newBoard.hashCode()) == null) {
-                scoredDraw = minimaxAbPrune2(newBoard, actual, deep - 1, alpha, beta, savedScores, null);
+                scoredDraw = minimaxAbPrune2(newBoard, actual, depth - 1, alpha, beta, savedScores, null);
                 if (newBoard.getActual() == actual) {
                     if (scoredDraw.getScore() > extremeScore) {
                         extremeScore = scoredDraw.getScore();
@@ -225,8 +221,8 @@ public class FranchiseService {
         }
     }
 
-    private ScoredDraw minimaxAbPrune(GameRound round, PlayerColor actual, int deep, int alpha, int beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
-        if (deep == 0 || round.isEnd()) {
+    private ScoredDraw minimaxAbPrune(GameRound round, PlayerColor actual, int depth, int alpha, int beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
+        if (depth == 0 || round.isEnd()) {
             int score = evaluatePosition(round, actual);
 //            score = round.getNext() == actual ? -score : score;
             return ScoredDraw.builder().gameRound(round).score(score).build();
@@ -240,17 +236,14 @@ public class FranchiseService {
         ScoredDraw bestMove = null;
         for (Draw draw : filterAndSortDraws(round, franchiseCoreService.nextDraws(round))) {
             GameRound newBoard = franchiseCoreService.manualDraw(round, draw).getGameRound();
-            if (scoredDraws != null) {
-                log.info("Analyzing draw: " + draw);
-            }
             Integer score = savedScores.get(newBoard.hashCode());
             ScoredDraw scoredDraw;
             if (score == null) {
                 if ((newBoard.getActual() == actual || newBoard.getNext() == actual) && newBoard.getActual() != newBoard.getNext()) {
-                    scoredDraw = minimaxAbPrune(newBoard, actual, deep - 1, -beta, -alpha, savedScores, null);
+                    scoredDraw = minimaxAbPrune(newBoard, actual, depth - 1, -beta, -alpha, savedScores, null);
                     score = -scoredDraw.getScore();
                 } else {
-                    scoredDraw = minimaxAbPrune(newBoard, actual, deep - 1, alpha, beta, savedScores, null);
+                    scoredDraw = minimaxAbPrune(newBoard, actual, depth - 1, alpha, beta, savedScores, null);
                     score = scoredDraw.getScore();
                 }
                 savedScores.put(newBoard.hashCode(), score);
@@ -308,20 +301,19 @@ public class FranchiseService {
         }
     }
 
-    public Draw divideAndConquer(GameRound round, int deep, int slice) {
+    public Draw divideAndConquer(GameRound round, int depth, int slice) {
         List<ScoredDraw> scoredDraws = new ArrayList<>();
-        minimaxAbPrune(round, round.getNext(), deep, -10000, +10000, new HashMap<>(), scoredDraws);
+        minimaxAbPrune(round, round.getNext(), depth, -10000, +10000, new HashMap<>(), scoredDraws);
         scoredDraws.sort((o1, o2) -> -Integer.compare(o1.getScore(), o2.getScore()));
         if (slice == 0) {
             return scoredDraws.get(0).getDraw();
         } else {
             ScoredDraw result = null;
             for (ScoredDraw sd : scoredDraws.stream().filter(f -> f.getGameRound() != null).limit(Math.min(scoredDraws.size(), slice)).toList()) {
-                log.info("Analyzing below: " + sd);
-                ScoredDraw draw = minimaxAbPrune(sd.getGameRound(), sd.getGameRound().getNext(), deep, -10000, +10000, new HashMap<>(), new ArrayList<>());
+                ScoredDraw draw = minimaxAbPrune(sd.getGameRound(), sd.getGameRound().getNext(), depth, -10000, +10000, new HashMap<>(), new ArrayList<>());
                 if (result == null
-                        || (result.getScore() < draw.getScore() && deep % round.getPlayers().size() == 0)
-                        || (result.getScore() > draw.getScore() && deep % round.getPlayers().size() > 0)) {
+                        || (result.getScore() < draw.getScore() && depth % round.getPlayers().size() == 0)
+                        || (result.getScore() > draw.getScore() && depth % round.getPlayers().size() > 0)) {
                     result = sd;
                 }
             }
@@ -330,4 +322,31 @@ public class FranchiseService {
             return result.getDraw();
         }
     }
+
+    @Getter
+    @Setter
+    @Builder
+    @ToString
+    private static class ScoredDraw {
+        private Draw draw;
+        private GameRound gameRound;
+        private int score;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @EqualsAndHashCode
+    private static class GameRoundDrawPredecessor {
+        private GameRoundDrawPredecessor predecessor;
+        private ExtendedGameRound gameRound;
+        private Draw draw;
+    }
+
+    enum GamePhase {
+        START,
+        GROW,
+        END
+    }
+
 }

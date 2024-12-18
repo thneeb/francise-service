@@ -11,7 +11,7 @@ public interface GameEngine {
 
     LearningModel createLearningModel(Algorithm algorithm);
 
-    void play(GameRound round, Set<ComputerPlayer> players, Set<LearningModel> learningModels, Map<String, Object> params, int times);
+    Map<PlayerColor, Integer> play(GameRound round, Set<ComputerPlayer> players, Set<LearningModel> learningModels, Map<String, Object> params, int times);
 
     List<GameRoundDraw> play(GameRound round, Set<ComputerPlayer> players);
 
