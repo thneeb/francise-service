@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
@@ -31,8 +30,6 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 @RequiredArgsConstructor
 @Slf4j
 public class FranchiseController implements DefaultApi {
-//    private final Map<String, GameRound> games = new HashMap<>();
-
     private final Map<String, List<GameRoundDraw>> gameRoundDraws = new HashMap<>();
 
     private final GameEngine gameEngine;
@@ -45,7 +42,6 @@ public class FranchiseController implements DefaultApi {
         Set<ComputerStrategy> algorithms = gameConfig.getLearningModels() == null ? Set.of() : new HashSet<>(gameConfig.getLearningModels());
         GameRound round = gameEngine.initGame(players);
         String uuid = UUID.randomUUID().toString();
-//        games.put(uuid, round);
         gameRoundDraws.put(uuid, new ArrayList<>(List.of(GameRoundDraw.builder().gameRound(round).build())));
         learningAlgorithms.put(uuid, algorithms);
         String href = linkTo(methodOn(getClass()).retrieveGameBoard(uuid)).withSelfRel().getHref();
@@ -55,7 +51,6 @@ public class FranchiseController implements DefaultApi {
 
     @Override
     public ResponseEntity<GameField> retrieveGameBoard(String gameId) {
-//        GameRound round = games.get(gameId);
         List<GameRoundDraw> gdrs = gameRoundDraws.get(gameId);
         GameRound round = gdrs.get(gdrs.size() - 1).getGameRound();
         GameField field = mapGameField(round);
@@ -124,7 +119,6 @@ public class FranchiseController implements DefaultApi {
             }
         }
 
-//        games.put(gameId, extendedGameRound.getGameRound());
         ExtendedDraw extendedDraw = new ExtendedDraw();
         extendedDraw.setDraw(humanDraw);
         if (extendedGameRound.getAdditionalInfo() != null) {

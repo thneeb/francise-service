@@ -225,8 +225,8 @@ components:
         - COMPUTER
     ComputerStrategy:
       enum:
-        - MONTE_CARLO
-        - BEST_MOVE
+        - MONTE_CARLO_TREE_SEARCH
+        - MAXIMAX
         - MINIMAX
         - AB_PRUNE
         - DIVIDE_AND_CONQUER

@@ -14,8 +14,6 @@ import java.util.stream.Collectors;
 public class FranchiseService {
     private static final Random RANDOM = new Random();
 
-    private final Map<GameRound, Map<Draw, List<Integer>>> learnings = new HashMap<>();
-
     private final FranchiseCoreService franchiseCoreService;
 
     private List<GameRoundDrawPredecessor> nextRounds(GameRound gameRound, int count) {
@@ -58,7 +56,8 @@ public class FranchiseService {
         }
         if (RANDOM.nextDouble(1) < epsilon) {
             log.info("Hit " + round.getRound());
-            return Optional.of(bestDraws.get(RANDOM.nextInt(Math.min(bestDraws.size(), 6))));
+//            return Optional.of(bestDraws.get(RANDOM.nextInt(Math.min(bestDraws.size(), 6))));
+            return Optional.of(bestDraws.get(0));
         } else {
             return Optional.empty();
         }
@@ -66,14 +65,14 @@ public class FranchiseService {
 
     int openPlates(GameRound round) {
         return Arrays.stream(City.values())
-                .filter(f -> round.getPlayers().size() > 2 || round.getPlates().get(f) == null || round.getPlates().get(f).getBranches().get(0) != PlayerColor.BLACK)
+//                .filter(f -> round.getPlayers().size() > 2 || round.getPlates().get(f) == null || round.getPlates().get(f).getBranches().get(0) != PlayerColor.BLACK)
                 .filter(f -> round.getPlates().get(f) == null || !round.getPlates().get(f).isClosed())
                 .mapToInt(f -> f.getSize() - (round.getPlates().get(f) == null ? 0 : round.getPlates().get(f).getBranches().size()))
                 .sum();
     }
 
     /**
-     * Evaluates the game phase by calculating the percentage of the open branch positions devided through the possible
+     * Evaluates the game phase by calculating the percentage of the open branch positions divided through the possible
      * branches
      * @param round a game round
      * @return percentage (0-100)
@@ -118,7 +117,7 @@ public class FranchiseService {
         return bestMoves.values().iterator().next().getDraw();
     }
 
-    public Draw findBestMove(GameRound round, int depth) {
+    public Draw maximax(GameRound round, int depth) {
         List<GameRoundDrawPredecessor> rounds = nextRounds(round, depth);
         Map<GameRoundDrawPredecessor, Map<PlayerColor, Integer>> scores = score(rounds);
         Map<GameRoundDrawPredecessor, GameRoundDrawPredecessor> bestMoves = new HashMap<>();
@@ -142,7 +141,7 @@ public class FranchiseService {
         return map;
     }
 
-    public Draw computerDraw(GameRound gameRound, Map<Draw, List<Integer>> learnings, float epsilon) {
+    public Draw monteCarloTreeSearch(GameRound gameRound, Map<Draw, List<Integer>> learnings, float epsilon) {
         List<Draw> draws = franchiseCoreService.nextDraws(gameRound);
         if (learnings == null || learnings.isEmpty()) {
             return draws.get(RANDOM.nextInt(draws.size()));
@@ -274,7 +273,7 @@ public class FranchiseService {
         GamePhase phase = evaluateGamePhase(round);
         franchiseCoreService.scoreTowns(round, null);
         franchiseCoreService.scoreMoney(round, null, switch (phase) {
-            case START -> 6;
+            case START -> 4;
             case GROW, END -> 3;
         });
         franchiseCoreService.scoreBonusTiles(round, null, switch (phase) {
@@ -283,9 +282,9 @@ public class FranchiseService {
             case END -> 4;
         });
         scoreIncome(round, switch (phase) {
-            case START -> 2;
+            case START -> 5;
             case GROW -> 4;
-            case END -> 5;
+            case END -> 2;
         });
         scoreRegionPossession(round);
         return franchiseCoreService.score(round.getScores()).get(color);

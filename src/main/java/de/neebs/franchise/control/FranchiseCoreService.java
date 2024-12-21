@@ -157,6 +157,7 @@ public class FranchiseCoreService {
     void scoreTowns(GameRound round, AdditionalInfo additionalInfo) {
         Map<PlayerColor, Long> towns = round.getPlates().entrySet().stream()
                 .filter(f -> f.getKey().getSize() == 1)
+                .filter(f -> !f.getValue().getBranches().isEmpty())
                 .filter(f -> round.getPlayers().contains(f.getValue().getBranches().get(0)))
                 .map(f -> f.getValue().getBranches().get(0))
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));

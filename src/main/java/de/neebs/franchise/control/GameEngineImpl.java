@@ -69,7 +69,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.findBestMove(round, getInt(getParams(), DEPTH, 3));
+            return franchiseService.maximax(round, getInt(getParams(), DEPTH, 3));
         }
     }
 
@@ -101,16 +101,31 @@ public class GameEngineImpl implements GameEngine {
     }
 
     private class MonteCarloComputerPlayer extends AbstractComputerPlayer {
-        public static final String EPSILON = "epsilon";
+        private static final String EPSILON = "epsilon";
+        private static final String TIMES = "times";
+        private final boolean playGame;
 
         MonteCarloComputerPlayer(PlayerColor color, Map<String, Object> params) {
             super(color, params);
+            playGame = true;
+        }
+
+        MonteCarloComputerPlayer(PlayerColor color, Map<String, Object> params, boolean playGame) {
+            super(color, params);
+            this.playGame = playGame;
         }
 
         @Override
         public Draw evaluateDraw(GameRound round) {
+            if (playGame) {
+                play(round, createPlayers(round.getPlayers()), Set.of(new MonteCarloLearningModel()), Map.of(), getInt(getParams(), TIMES, 100));
+            }
             Map<Draw, List<Integer>> learnings = inMemoryMonteCarloLearningModel.getLearnings(round);
-            return franchiseService.computerDraw(round, learnings, getFloat(getParams(), EPSILON, 0.9f));
+            return franchiseService.monteCarloTreeSearch(round, learnings, getFloat(getParams(), EPSILON, 0.95f));
+        }
+
+        private Set<ComputerPlayer> createPlayers(List<PlayerColor> players) {
+            return players.stream().map(f -> new MonteCarloComputerPlayer(f, getParams(), false)).collect(Collectors.toSet());
         }
     }
 
@@ -169,9 +184,9 @@ public class GameEngineImpl implements GameEngine {
             return new MinimaxAbPruneComputerPlayer(playerColor, params);
         } else if (algorithm == Algorithm.DIVIDE_AND_CONQUER) {
             return new DivideAndConquerComputerPlayer(playerColor, params);
-        } else if (algorithm == Algorithm.FIND_BEST_MOVE) {
+        } else if (algorithm == Algorithm.MAXIMAX) {
             return new FindBestDrawComputerPlayer(playerColor, params);
-        } else if (algorithm == Algorithm.MONTE_CARLO) {
+        } else if (algorithm == Algorithm.MONTE_CARLO_TREE_SEARCH) {
             return new MonteCarloComputerPlayer(playerColor, params);
         } else {
             throw new IllegalArgumentException("Unknown algorithm");
@@ -180,7 +195,7 @@ public class GameEngineImpl implements GameEngine {
 
     @Override
     public LearningModel createLearningModel(Algorithm algorithm) {
-        if (algorithm == Algorithm.MONTE_CARLO) {
+        if (algorithm == Algorithm.MONTE_CARLO_TREE_SEARCH) {
             return new MonteCarloLearningModel();
         } else if (algorithm == Algorithm.REINFORCEMENT_LEARNING) {
             return new ReinforcementLearningModel();

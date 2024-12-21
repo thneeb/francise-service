@@ -3,9 +3,9 @@ package de.neebs.franchise.control;
 public enum Algorithm {
     REINFORCEMENT_LEARNING,
     MACHINE_LEARNING,
-    FIND_BEST_MOVE,
+    MAXIMAX,
     MINIMAX,
     MINIMAX_AB_PRUNE,
-    MONTE_CARLO,
+    MONTE_CARLO_TREE_SEARCH,
     DIVIDE_AND_CONQUER
 }
