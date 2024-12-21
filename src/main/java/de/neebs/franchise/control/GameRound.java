@@ -42,11 +42,23 @@ public class GameRound {
         return next;
     }
 
-    public boolean isInitialization() {
-        return getRound() <= getPlayers().size();
+    boolean isInitialization() {
+        return round <= players.size();
+    }
+
+    public boolean isUpcomingRoundInitialization() {
+        return round + 1 <= players.size();
     }
 
     public Score getActualScore() {
         return scores.get(actual);
+    }
+
+    boolean canUseBonusTile() {
+        return round >= players.size() * 2 && scores.get(next).getBonusTiles() > 0;
+    }
+
+    public boolean isUpcomingRoundBonusTileUsable() {
+        return round >= players.size() * 2 && scores.get(next).getBonusTiles() > 0;
     }
 }

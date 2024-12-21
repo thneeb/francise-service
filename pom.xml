@@ -15,6 +15,18 @@
     <version>3.2.4</version>
   </parent>
 
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>2023.0.3</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
@@ -24,6 +36,14 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-openfeign</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.hateoas</groupId>
@@ -132,6 +152,7 @@
                 <generateSupportingFiles>true</generateSupportingFiles>
                 <interfaceOnly>true</interfaceOnly>
                 <useResponseEntity>true</useResponseEntity>
+                <skipDefaultInterface>true</skipDefaultInterface>
                 <useTags>true</useTags>
                 <useSpringBoot3>true</useSpringBoot3>
                 <generatedConstructorWithRequiredArgs>false</generatedConstructorWithRequiredArgs>

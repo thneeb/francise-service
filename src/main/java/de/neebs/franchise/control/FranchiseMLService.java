@@ -100,7 +100,7 @@ public class FranchiseMLService {
         for (City city : City.values()) {
             CityPlate plate = round.getPlates().get(city);
             if (plate == null) {
-                plate = new CityPlate(false, new ArrayList<>());
+                plate = new CityPlate(false, new ArrayList<>(), null);
             }
             for (int i = 0; i < city.getSize(); i++) {
                 if (i < plate.getBranches().size()) {

@@ -1,0 +1,22 @@
+<html xmlns:th="http://www.thymeleaf.org" xmlns="http://www.w3.org/1999/html" lang="EN">
+<!--/*@thymesVar id="appName" type="java.lang.String"*/-->
+<!--/*@thymesVar id="setupGame" type="de.neebs.franchise.boundary.frontend.SetupGame"*/-->
+<head>
+    <title>Setup game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+<form action="#" th:action="@{/game-setup}" th:object="${setupGame}" method="POST">
+    <label th:if="${error}" th:text="${error}"></label><br/>
+    <label th:each="player, idx: *{availablePlayerColors}">
+        Player <label th:text="${idx.index + 1}"/>
+        <select th:field="*{selectedPlayerColors['__${idx.index}__']}">
+            <option value=""></option>
+            <option th:each="color: *{availablePlayerColors}" th:value="${color}" th:text="${color}"></option>
+        </select>
+    </label>
+    <br/>
+    <input type="submit" name="Auswahl"/>
+</form>
+</body>
+</html>

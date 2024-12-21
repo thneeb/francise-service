@@ -71,6 +71,29 @@ paths:
             'application/json':
               schema:
                 $ref: '#/components/schemas/ExtendedDraw'
+  /franchise/{gameId}/draws/{index}:
+    parameters:
+      -
+        name: gameId
+        schema:
+          type: string
+        required: true
+        in: path
+      -
+        name: index
+        schema:
+          type: integer
+        required: true
+        in: path
+    get:
+        operationId: retrieveDraw
+        responses:
+          '200':
+            description: Returns the draw for the given index
+            content:
+              'application/json':
+                schema:
+                  $ref: '#/components/schemas/HumanDraw'
   /franchise/{gameId}/learnings:
     parameters:
       -
@@ -113,6 +136,10 @@ components:
       properties:
         end:
           type: boolean
+        initialization:
+          type: boolean
+        bonusTileUsable:
+          type: boolean
         next:
           $ref: '#/components/schemas/PlayerColor'
         cities:
@@ -143,6 +170,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlayerColor'
+        extensionCosts:
+          type: integer
     Player:
       properties:
         color:

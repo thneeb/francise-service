@@ -30,7 +30,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseRLService.reinforcementLearning(round, getFloat(getParams().get(EPSILON), 0.9f));
+            return franchiseRLService.reinforcementLearning(round, getFloat(getParams(), EPSILON, 0.9f));
         }
     }
 
@@ -43,7 +43,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseMLService.machineLearning(round, getParams().get(RANGE) == null ? 3 : (Integer)getParams().get(RANGE));
+            return franchiseMLService.machineLearning(round, getInt(getParams(), RANGE, 3));
         }
     }
 
@@ -56,7 +56,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.minimax(round, getParams().get(DEPTH) == null ? 3 : (Integer)getParams().get(DEPTH));
+            return franchiseService.minimax(round, getInt(getParams(), DEPTH, 3));
         }
     }
 
@@ -69,7 +69,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.findBestMove(round, getParams().get(DEPTH) == null ? 3 : (Integer)getParams().get(DEPTH));
+            return franchiseService.findBestMove(round, getInt(getParams(), DEPTH, 3));
         }
     }
 
@@ -82,7 +82,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.minimaxAbPrune(round, getParams().get(DEPTH) == null ? 3 : (Integer)getParams().get(DEPTH));
+            return franchiseService.minimaxAbPrune(round, getInt(getParams(), DEPTH, 3));
         }
     }
 
@@ -96,10 +96,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.divideAndConquer(round,
-                    getParams().get(DEPTH) == null ? 3 : (Integer)getParams().get(DEPTH),
-                    getParams().get(SLICE) == null ? 3 : (Integer)getParams().get(SLICE)
-            );
+            return franchiseService.divideAndConquer(round, getInt(getParams(), DEPTH, 3), getInt(getParams(), SLICE, 3));
         }
     }
 
@@ -113,7 +110,7 @@ public class GameEngineImpl implements GameEngine {
         @Override
         public Draw evaluateDraw(GameRound round) {
             Map<Draw, List<Integer>> learnings = inMemoryMonteCarloLearningModel.getLearnings(round);
-            return franchiseService.computerDraw(round, learnings, getFloat(getParams().get(EPSILON), 0.9f));
+            return franchiseService.computerDraw(round, learnings, getFloat(getParams(), EPSILON, 0.9f));
         }
     }
 
@@ -206,7 +203,9 @@ public class GameEngineImpl implements GameEngine {
                 learningModel.train(grds);
             }
             PlayerColor winner = map.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
-            result.put(winner, result.getOrDefault(winner, 0) + 1);
+            if (map.values().stream().distinct().count() != 1) {
+                result.put(winner, result.getOrDefault(winner, 0) + 1);
+            }
         }
         for (LearningModel learningModel : learningModels) {
             learningModel.save();
@@ -239,7 +238,25 @@ public class GameEngineImpl implements GameEngine {
         return franchiseCoreService.nextDraws(round);
     }
 
-    private float getFloat(Object o, float defaultValue) {
+    private int getInt(Map<String, Object> map, String name, int defaultValue) {
+        if (map == null) {
+            return defaultValue;
+        }
+        Object o = map.get(name);
+        if (o instanceof Integer value) {
+            return value;
+        } else if (o instanceof Long value) {
+            return value.intValue();
+        } else {
+            return defaultValue;
+        }
+    }
+
+    private float getFloat(Map<String, Object> map, String name, float defaultValue) {
+        if (map == null) {
+            return defaultValue;
+        }
+        Object o = map.get(name);
         if (o instanceof Float value) {
             return value;
         } else if (o instanceof Double value) {

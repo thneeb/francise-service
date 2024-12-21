@@ -12,17 +12,21 @@ public class FranchiseCoreService {
         Map<PlayerColor, Score> scores = Rules.initScores(players);
         Map<City, CityPlate> cityPlates = new EnumMap<>(City.class);
         List<Region> regionScores = new ArrayList<>();
-        if (players.size() == 2) {
-            PlayerColor neutralColor = Arrays.stream(PlayerColor.values()).filter(f -> !players.contains(f)).findAny().orElseThrow();
-            CityPlate plate = new CityPlate(true, new ArrayList<>());
-            plate.getBranches().add(neutralColor);
-            for (Region region : Set.of(Region.CALIFORNIA, Region.UPPER_WEST, Region.MONTANA)) {
-                for (City city : region.getCities()) {
-                    cityPlates.put(city, plate);
-                }
-                regionScores.add(region);
+        PlayerColor neutralColor = Arrays.stream(PlayerColor.values()).filter(f -> !players.contains(f)).findAny().orElseThrow();
+        CityPlate blockedPlate = new CityPlate(true, List.of(neutralColor), null);
+        CityPlate emptyPlate = new CityPlate(false, List.of(), null);
+
+        for (City city : City.values()) {
+            if (players.size() == 2 && Set.of(Region.CALIFORNIA, Region.UPPER_WEST, Region.MONTANA).stream().flatMap(f -> f.getCities().stream()).anyMatch(f -> f == city)) {
+                cityPlates.put(city, blockedPlate);
+            } else {
+                cityPlates.put(city, emptyPlate);
             }
         }
+        if (players.size() == 2) {
+            regionScores.addAll(Set.of(Region.CALIFORNIA, Region.UPPER_WEST, Region.MONTANA));
+        }
+
         return new GameRound(
                 players,
                 players.get(players.size() - 1),
@@ -54,10 +58,36 @@ public class FranchiseCoreService {
         if (next.isInitialization()) {
             if (index > 0) {
                 next.setNext(next.getPlayers().get(index - 1));
+            } else {
+                updateExtensionCosts(next);
             }
         } else {
             index++;
             next.setNext(next.getPlayers().get(index % next.getPlayers().size()));
+            updateExtensionCosts(next);
+        }
+    }
+
+    private void updateExtensionCosts(GameRound round) {
+        Set<City> ownCities = retrieveOwnedCities(round.getPlates(), round.getNext());
+        for (City city : City.values()) {
+            if (!ownCities.contains(city)) {
+                CityPlate plate = round.getPlates().get(city);
+                if (plate != null) {
+                    if (!plate.isClosed()) {
+                        Optional<Connection> optionalConnection = Rules.CONNECTIONS.stream()
+                                .filter(f -> f.getCities().contains(city) && f.getCities().stream().anyMatch(ownCities::contains))
+                                .min(Comparator.comparingInt(Connection::getCosts));
+                        if (optionalConnection.isPresent()) {
+                            plate.setExtensionCosts(optionalConnection.get().getCosts());
+                        } else {
+                            plate.setExtensionCosts(null);
+                        }
+                    } else {
+                        plate.setExtensionCosts(null);
+                    }
+                }
+            }
         }
     }
 
@@ -258,7 +288,7 @@ public class FranchiseCoreService {
         for (City city : score.getExpansions()) {
             CityPlate plate = round.getPlates().get(city);
             if (plate == null) {
-                plate = new CityPlate(false, new ArrayList<>());
+                plate = new CityPlate(false, new ArrayList<>(), null);
                 round.getPlates().put(city, plate);
             }
             plate.getBranches().add(round.getNext());
@@ -277,20 +307,21 @@ public class FranchiseCoreService {
             if (optional.getBranches().contains(gameRound.getNext())) {
                 throw new IllegalDrawException("Player " + gameRound.getNext() + " already has a branch in " + city);
             }
-        }
-        Set<City> owned = gameRound.getPlates().entrySet().stream().filter(f -> f.getValue().getBranches().contains(gameRound.getActual())).map(Map.Entry::getKey).collect(Collectors.toSet());
-        Optional<Connection> optionalConnection = Rules.CONNECTIONS.stream()
-                .filter(f -> f.getCities().contains(city) && f.getCities().stream().anyMatch(owned::contains))
-                .min(Comparator.comparingInt(Connection::getCosts));
-        if (optionalConnection.isPresent() && (gameRound.getScores().get(gameRound.getNext()).getMoney() >= optionalConnection.get().getCosts())) {
-            Score score = gameRound.getScores().get(gameRound.getNext());
-            score.getExpansions().add(city);
-            score.setMoney(score.getMoney() - optionalConnection.get().getCosts());
-            if (additionalInfo != null) {
-                additionalInfo.getInfluenceComments().add("Extension costs for " + city + ": "+ optionalConnection.get().getCosts());
+
+            if (optional.getExtensionCosts() == null) {
+                throw new IllegalDrawException("No connection exists for " + city);
             }
-        } else {
-            throw new IllegalDrawException("Not enough money for expansion to " + city);
+
+            Score score = gameRound.getScores().get(gameRound.getNext());
+            if (score.getMoney() < optional.getExtensionCosts()) {
+                throw new IllegalDrawException("Not enough money for expansion to " + city);
+            }
+
+            score.getExpansions().add(city);
+            score.setMoney(score.getMoney() - optional.getExtensionCosts());
+            if (additionalInfo != null) {
+                additionalInfo.getInfluenceComments().add("Extension costs for " + city + ": "+ optional.getExtensionCosts());
+            }
         }
     }
 
@@ -329,10 +360,10 @@ public class FranchiseCoreService {
             throw new IllegalDrawException("In initialization phase only towns are allowed");
         }
         CityPlate plate = gameRound.getPlates().get(city);
-        if (plate != null) {
+        if (plate != null && !plate.getBranches().isEmpty()) {
             throw new IllegalDrawException("Can only use towns, which are not occupied so far");
         }
-        plate = new CityPlate(true, new ArrayList<>());
+        plate = new CityPlate(true, new ArrayList<>(), null);
         plate.getBranches().add(gameRound.getNext());
         gameRound.getPlates().put(city, plate);
     }
@@ -341,7 +372,9 @@ public class FranchiseCoreService {
         if (gameRound.isEnd()) {
             return List.of();
         } else if (gameRound.getRound() + 1 <= gameRound.getPlayers().size()) {
-            return City.getTowns().stream().filter(f -> !gameRound.getPlates().containsKey(f)).map(f -> Draw.builder().extension(Set.of(f)).increase(List.of()).build()).toList();
+            return City.getTowns().stream()
+                    .filter(f -> !gameRound.getPlates().containsKey(f) || gameRound.getPlates().get(f).getBranches().isEmpty())
+                    .map(f -> Draw.builder().extension(Set.of(f)).increase(List.of()).build()).toList();
         } else {
             int income = calcIncome(gameRound, gameRound.getNext());
             int money = gameRound.getScores().get(gameRound.getNext()).getMoney() + income;
@@ -350,13 +383,13 @@ public class FranchiseCoreService {
             // ne extension
             Map<Draw, Integer> map = new HashMap<>();
             map.put(Draw.builder().extension(Set.of()).increase(List.of()).build(), money);
-            if (canUseBonusTile(gameRound)) {
+            if (gameRound.canUseBonusTile()) {
                 map.put(Draw.builder().extension(Set.of()).increase(List.of()).bonusTileUsage(BonusTileUsage.MONEY).build(), money + 10);
             }
             // extension to one city in the neighbourhood
             Map<Draw, Integer> extension = evaluateExtensions(gameRound, owned, map);
             // is a second extension possible?
-            if (canUseBonusTile(gameRound)) {
+            if (gameRound.canUseBonusTile()) {
                 map.putAll(evaluateExtensions(gameRound, owned, extension));
             }
             map.putAll(extension);
@@ -402,7 +435,7 @@ public class FranchiseCoreService {
                 List<City> cities = new ArrayList<>(draw.getIncrease());
                 cities.add(city);
                 increases.add(Draw.builder().extension(draw.getExtension()).increase(cities).bonusTileUsage(draw.getBonusTileUsage()).build());
-                if (canUseBonusTile(gameRound) && !draw.isBonusTile()) {
+                if (gameRound.canUseBonusTile() && !draw.isBonusTile()) {
                     CityPlate cityPlate = gameRound.getPlates().get(city);
                     if (cityPlate.getBranches().size() + 2 > city.getSize()) {
                         continue; // not enough places left
@@ -422,25 +455,18 @@ public class FranchiseCoreService {
         return increases;
     }
 
-    private boolean canUseBonusTile(GameRound gameRound) {
-        return gameRound.getRound() >= gameRound.getPlayers().size() * 2 && gameRound.getScores().get(gameRound.getNext()).getBonusTiles() > 0;
-    }
-
     private Map<Draw, Integer> evaluateExtensions(GameRound gameRound, Set<City> owned, Map<Draw, Integer> basis) {
         Map<Draw, Integer> map = new HashMap<>();
         for (Map.Entry<Draw, Integer> entry : basis.entrySet()) {
             for (City city : Arrays.stream(City.values()).filter(f -> !owned.contains(f)).toList()) {
-                Optional<Connection> optionalConnection = Rules.CONNECTIONS.stream()
-                        .filter(f -> f.getCities().contains(city) && f.getCities().stream().anyMatch(owned::contains))
-                        .min(Comparator.comparingInt(Connection::getCosts));
-                if (optionalConnection.isPresent()
-                        && entry.getValue() >= optionalConnection.get().getCosts()
-                        && (gameRound.getPlates().get(city) == null || !gameRound.getPlates().get(city).isClosed())
-                        && !entry.getKey().getExtension().contains(city)
-                        && (!entry.getKey().isBonusTile() || entry.getKey().getExtension().isEmpty())) {
+                Integer costs = gameRound.getPlates().get(city).getExtensionCosts();
+                if (costs != null // es gibt eine Möglichkeit zu expandieren
+                        && entry.getValue() >= costs // die Kosten können getragen werden
+                        && !entry.getKey().getExtension().contains(city) // die Stadt ist noch nicht im Draw
+                        && (!entry.getKey().isBonusTile() || entry.getKey().getExtension().isEmpty())) { // es wurde noch kein Bonus Tile verwendet oder es wurde noch keine Stadt expandiert
                     Set<City> set = new HashSet<>(entry.getKey().getExtension());
                     set.add(city);
-                    map.put(Draw.builder().extension(set).increase(List.of()).bonusTileUsage(set.size() > 1 ? BonusTileUsage.EXTENSION : entry.getKey().getBonusTileUsage()).build(), entry.getValue() - optionalConnection.get().getCosts());
+                    map.put(Draw.builder().extension(set).increase(List.of()).bonusTileUsage(set.size() > 1 ? BonusTileUsage.EXTENSION : entry.getKey().getBonusTileUsage()).build(), entry.getValue() - costs);
                 }
             }
         }

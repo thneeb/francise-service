@@ -1,0 +1,50 @@
+<html xmlns:th="http://www.thymeleaf.org" xmlns="http://www.w3.org/1999/html" lang="EN">
+<!--/*@thymesVar id="appName" type="java.lang.String"*/-->
+<!--/*@thymesVar id="gameField" type="de.neebs.franchise.client.entity.GameField"*/-->
+<!--/*@thymesVar id="draw" type="de.neebs.franchise.boundary.frontend.Draw"*/-->
+<head>
+    <title>Game field</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <form action="#" th:action="@{/human-draw}" th:object="${draw}" method="POST">
+        <input type="hidden" name="gameId" th:value="${gameId}">
+        <input type="hidden" name="color" th:value="${gameField.next}">
+        <div th:text="'Turn of ' + ${gameField.next}"></div>
+        <div th:if="${lastDraw != null}" th:text="${lastDraw}"></div>
+        <div th:if="${gameField.bonusTileUsable}">
+            <select th:field="*{bonusTileUsage}">
+                <option value=""></option>
+                <option th:each="item: ${availableBonusTiles}" th:value="${item}" th:text="${item}"></option>
+            </select>
+        </div>
+        <div th:each="city : ${gameField.cities}">
+            <span th:text="${city.city + ' (Size = ' + city.size} + '): '"></span>
+            <span th:each="branch : ${city.branches}" th:text="${branch}"></span>
+            <span th:if="${!city.closed && #lists.contains(city.branches, gameField.next)}">
+                <select th:field="*{increases['__${city.city}__']}">
+                    <option value="0" th:text="0"></option>
+                    <option value="1" th:text="1"></option>
+                    <option value="2" th:text="2"></option>
+                </select>
+            </span>
+            <span th:if="${city.extensionCosts != null}">
+                EXTEND: <input type="checkbox" th:field="*{extensions}" th:value="${city.city}">
+            </span>
+            <span th:if="${gameField.initialization == true && city.size == 1 && !city.closed == true}">
+                SELECT: <input type="radio" th:field="*{extensions}" th:value="${city.city}">
+            </span>
+        </div>
+        <input type="submit" value="Make draw">
+    </form>
+    <form action="#" th:action="@{/computer-draw}" th:object="${computerConfig}" method="POST">
+        <input type="hidden" name="gameId" th:value="${gameId}">
+        <input type="hidden" name="color" th:value="${gameField.next}">
+        <select th:field="*{strategy}">
+            <option th:each="item: ${availableStrategies}" th:value="${item}" th:text="${item}"></option>
+        </select>
+        <br/>
+        <input type="submit" value="Make computer draw">
+    </form>
+</body>
+</html>

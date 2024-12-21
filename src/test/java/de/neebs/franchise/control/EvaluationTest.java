@@ -28,7 +28,7 @@ class EvaluationTest {
     void openPlatesFull3PlayersNewYorkClosedTest() {
         FranchiseService service = new FranchiseService(franchiseCoreService);
         GameRound round = franchiseCoreService.init(List.of(PlayerColor.BLUE, PlayerColor.RED, PlayerColor.BLACK));
-        round.getPlates().put(City.NEW_YORK, new CityPlate(true, List.of(PlayerColor.BLUE)));
+        round.getPlates().put(City.NEW_YORK, new CityPlate(true, List.of(PlayerColor.BLUE), null));
         int openPlates = service.openPlates(round);
         Assertions.assertEquals(121 - City.NEW_YORK.getSize(), openPlates);
     }
@@ -37,7 +37,7 @@ class EvaluationTest {
     void openPlatesFull3PlayersNewYorkThreeBanchesTest() {
         FranchiseService service = new FranchiseService(franchiseCoreService);
         GameRound round = franchiseCoreService.init(List.of(PlayerColor.BLUE, PlayerColor.RED, PlayerColor.BLACK));
-        round.getPlates().put(City.NEW_YORK, new CityPlate(false, List.of(PlayerColor.BLUE, PlayerColor.BLUE, PlayerColor.BLACK)));
+        round.getPlates().put(City.NEW_YORK, new CityPlate(false, List.of(PlayerColor.BLUE, PlayerColor.BLUE, PlayerColor.BLACK), null));
         int openPlates = service.openPlates(round);
         Assertions.assertEquals(121 - 3, openPlates);
     }

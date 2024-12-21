@@ -13,8 +13,9 @@ import java.util.List;
 public class CityPlate {
     private boolean closed;
     private final List<PlayerColor> branches;
+    private Integer extensionCosts;
 
     public static CityPlate copy(CityPlate plate) {
-        return new CityPlate(plate.isClosed(), new ArrayList<>(plate.getBranches()));
+        return new CityPlate(plate.closed, new ArrayList<>(plate.branches), plate.extensionCosts);
     }
 }

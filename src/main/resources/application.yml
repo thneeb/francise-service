@@ -3,6 +3,7 @@ logging:
   level:
 #    root: DEBUG
     de.neebs.franchise.control: DEBUG
+#    org.springframework.cloud.openfeign: DEBUG
 management:
   server:
     port: 4466
