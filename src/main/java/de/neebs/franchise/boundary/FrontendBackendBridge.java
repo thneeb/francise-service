@@ -1,4 +1,4 @@
-package de.neebs.franchise.integration;
+package de.neebs.franchise.boundary;
 
 import de.neebs.franchise.client.boundary.DefaultApi;
 import org.springframework.cloud.openfeign.FeignClient;

@@ -56,7 +56,6 @@ public class FranchiseService {
         }
         if (RANDOM.nextDouble(1) < epsilon) {
             log.info("Hit " + round.getRound());
-//            return Optional.of(bestDraws.get(RANDOM.nextInt(Math.min(bestDraws.size(), 6))));
             return Optional.of(bestDraws.get(0));
         } else {
             return Optional.empty();
@@ -65,7 +64,6 @@ public class FranchiseService {
 
     int openPlates(GameRound round) {
         return Arrays.stream(City.values())
-//                .filter(f -> round.getPlayers().size() > 2 || round.getPlates().get(f) == null || round.getPlates().get(f).getBranches().get(0) != PlayerColor.BLACK)
                 .filter(f -> round.getPlates().get(f) == null || !round.getPlates().get(f).isClosed())
                 .mapToInt(f -> f.getSize() - (round.getPlates().get(f) == null ? 0 : round.getPlates().get(f).getBranches().size()))
                 .sum();
@@ -160,10 +158,10 @@ public class FranchiseService {
             alpha.put(color, -Double.MAX_VALUE);
             beta.put(color, Double.MAX_VALUE);
         }
-        return minimaxAbPrune2(round, round.getNext(), depth, alpha, beta, new HashMap<>(), null).getDraw();
+        return minimaxAbPrune2(round, round.getNext(), depth, alpha, beta, new HashMap<>()).getDraw();
     }
 
-    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int depth, Map<PlayerColor, Double> alpha, Map<PlayerColor, Double> beta, Map<Integer, Double> savedScores, List<ScoredDraw> scoredDraws) {
+    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int depth, Map<PlayerColor, Double> alpha, Map<PlayerColor, Double> beta, Map<Integer, Double> savedScores) {
         if (depth == 0 || round.isEnd()) {
             double score = evaluatePosition(round, actual);
             return ScoredDraw.builder().gameRound(round).score(score).build();
@@ -175,7 +173,7 @@ public class FranchiseService {
             GameRound newBoard = franchiseCoreService.manualDraw(round, draw).getGameRound();
             final ScoredDraw scoredDraw;
             if (savedScores.get(newBoard.hashCode()) == null) {
-                scoredDraw = minimaxAbPrune2(newBoard, actual, depth - 1, alpha, beta, savedScores, null);
+                scoredDraw = minimaxAbPrune2(newBoard, actual, depth - 1, alpha, beta, savedScores);
                 if (newBoard.getActual() == actual) {
                     if (scoredDraw.getScore() > extremeScore) {
                         extremeScore = scoredDraw.getScore();
@@ -198,9 +196,6 @@ public class FranchiseService {
                 scoredDraw = ScoredDraw.builder().score(savedScores.get(newBoard.hashCode())).build();
             }
             scoredDraw.setDraw(draw);
-            if (scoredDraws != null) {
-                scoredDraws.add(scoredDraw);
-            }
             if (alpha.get(newBoard.getActual()) > beta.get(newBoard.getActual())) {
                 break;
             }
@@ -220,8 +215,8 @@ public class FranchiseService {
         }
 
         if (round.getRound() <= round.getPlayers().size() * 2) {
-            alpha = -10000;
-            beta = 10000;
+            alpha = -Double.MAX_VALUE;
+            beta = Double.MAX_VALUE;
         }
 
         ScoredDraw bestMove = null;

@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @Builder
 @ToString
-@EqualsAndHashCode(exclude = {"end", "scoredRegions", "round", "scores"})
+@EqualsAndHashCode(exclude = {"end", "firstCityScorers", "scoredRegions", "round", "scores"})
 public class GameRound {
     private List<PlayerColor> players;
     private PlayerColor next;

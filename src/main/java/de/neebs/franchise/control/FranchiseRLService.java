@@ -44,29 +44,30 @@ public class FranchiseRLService {
         parameterStore = new ParameterStore(manager, false);
 
         int countInputDimension = createInputDimension().size();
-        Model model = Model.newInstance("policy-network");
-        List<Draw> outputs = createOutputDimension();
-        SequentialBlock net = new SequentialBlock();
-        // count the input params
-        net.add(Linear.builder().setUnits(countInputDimension).build()).add(Activation::relu);  // Activation function for non-linearity
-        // count the input params
-        net.add(Linear.builder().setUnits(150).build()).add(Activation::relu);  // Activation function for non-linearity
-        // Output layer with outputDim neurons (number of actions)
-        net.add(Linear.builder().setUnits(outputs.size()).build());
-        model.setBlock(net);
+        try (Model model = Model.newInstance("policy-network")) {
+            List<Draw> outputs = createOutputDimension();
+            SequentialBlock net = new SequentialBlock();
+            // count the input params
+            net.add(Linear.builder().setUnits(countInputDimension).build()).add(Activation::relu);  // Activation function for non-linearity
+            // count the input params
+            net.add(Linear.builder().setUnits(150).build()).add(Activation::relu);  // Activation function for non-linearity
+            // Output layer with outputDim neurons (number of actions)
+            net.add(Linear.builder().setUnits(outputs.size()).build());
+            model.setBlock(net);
 
-        if (load) {
-            try {
-                model.load(Path.of("rl-model"), "rl-model");
-            } catch (IOException | MalformedModelException e) {
-                throw new IllegalStateException(e);
+            if (load) {
+                try {
+                    model.load(Path.of("rl-model"), "rl-model");
+                } catch (IOException | MalformedModelException e) {
+                    throw new IllegalStateException(e);
+                }
             }
+
+            TrainingConfig trainerConfig = new DefaultTrainingConfig(Loss.softmaxCrossEntropyLoss())
+                    .optOptimizer(Optimizer.adam().build());  // Adam optimizer for gradient updates
+
+            trainer = model.newTrainer(trainerConfig);
         }
-
-        TrainingConfig trainerConfig = new DefaultTrainingConfig(Loss.softmaxCrossEntropyLoss())
-                .optOptimizer(Optimizer.adam().build());  // Adam optimizer for gradient updates
-
-        trainer = model.newTrainer(trainerConfig);
         trainer.initialize(new Shape(1, countInputDimension));
     }
 
@@ -98,7 +99,7 @@ public class FranchiseRLService {
 
         trainModel(learnings);
 
-        return learnings.get(learnings.size() - 1).getInfluence().entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
+        return learnings.get(learnings.size() - 1).getInfluence().entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
     }
 
     private void fillInfluence(List<Learning> learnings) {

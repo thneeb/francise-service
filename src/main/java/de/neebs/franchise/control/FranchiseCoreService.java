@@ -143,8 +143,8 @@ public class FranchiseCoreService {
 
     public void scoreRound(GameRound round, AdditionalInfo additionalInfo) {
         scoreTowns(round, additionalInfo);
-        scoreMoney(round, additionalInfo, 3);
-        scoreBonusTiles(round, additionalInfo, 4);
+        scoreMoney(round, additionalInfo);
+        scoreBonusTiles(round, additionalInfo);
     }
 
     void scoreTowns(GameRound round, AdditionalInfo additionalInfo) {
@@ -164,11 +164,11 @@ public class FranchiseCoreService {
         }
     }
 
-    void scoreBonusTiles(GameRound round, AdditionalInfo additionalInfo, int value) {
+    void scoreBonusTiles(GameRound round, AdditionalInfo additionalInfo) {
         for (Map.Entry<PlayerColor, Score> entry : round.getScores().entrySet()) {
             Score score = entry.getValue();
 
-            int influence = score.getBonusTiles() * value;
+            int influence = score.getBonusTiles() * 4;
             score.setInfluence(score.getInfluence() + influence);
             score.setBonusTiles(0);
             if (additionalInfo != null) {
@@ -177,13 +177,13 @@ public class FranchiseCoreService {
         }
     }
 
-    void scoreMoney(GameRound round, AdditionalInfo additionalInfo, int divisor) {
+    void scoreMoney(GameRound round, AdditionalInfo additionalInfo) {
         for (Map.Entry<PlayerColor, Score> entry : round.getScores().entrySet()) {
             Score score = entry.getValue();
 
-            int influence = score.getMoney() / divisor;
+            int influence = score.getMoney() / 3;
             score.setInfluence(score.getInfluence() + influence);
-            score.setMoney(score.getMoney() % divisor);
+            score.setMoney(score.getMoney() % 3);
             if (additionalInfo != null) {
                 additionalInfo.getInfluenceComments().add("Final score money for " + entry.getKey() + ": " + influence);
             }

@@ -4,10 +4,10 @@ import de.neebs.franchise.boundary.entity.ComputerConfig;
 import de.neebs.franchise.boundary.entity.Draw;
 import de.neebs.franchise.boundary.entity.SetupGame;
 import de.neebs.franchise.client.entity.*;
-import de.neebs.franchise.integration.FrontendBackendBridge;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -58,7 +58,7 @@ public class FrontendController {
         }
         String[] s = response.getHeaders().getLocation().getPath().split("/");
         String gameId = s[s.length - 1];
-        return "redirect:/game?gameId=" + gameId;
+        return getGameRedirct(gameId);
     }
 
     @GetMapping("/game")
@@ -100,8 +100,8 @@ public class FrontendController {
                         .toList())
                 .bonusTileUsage(draw.getBonusTileUsage())
                 .build();
-        ResponseEntity<ExtendedDraw> response = frontendBackendBridge.createDraw(gameId, humanDraw);
-        return "redirect:/game?gameId=" + gameId;
+        frontendBackendBridge.createDraw(gameId, humanDraw);
+        return getGameRedirct(gameId);
     }
 
     @PostMapping("/computer-draw")
@@ -112,13 +112,17 @@ public class FrontendController {
                 .strategy(config.getStrategy())
                 .params(config.getParameters())
                 .build();
-        ResponseEntity<ExtendedDraw> response = frontendBackendBridge.createDraw(gameId, computerPlayer);
-        return "redirect:/game?gameId=" + gameId;
+        frontendBackendBridge.createDraw(gameId, computerPlayer);
+        return getGameRedirct(gameId);
     }
 
     @GetMapping("/undo")
     public String undo(@RequestParam("gameId") String gameId, Model model) {
-        ResponseEntity<GameField> response = frontendBackendBridge.undoDraws(gameId, -1);
+        frontendBackendBridge.undoDraws(gameId, -1);
+        return getGameRedirct(gameId);
+    }
+
+    private static @NotNull String getGameRedirct(String gameId) {
         return "redirect:/game?gameId=" + gameId;
     }
 }
