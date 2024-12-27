@@ -1,4 +1,4 @@
-package de.neebs.franchise.boundary.frontend;
+package de.neebs.franchise.boundary.entity;
 
 import de.neebs.franchise.client.entity.ComputerStrategy;
 import lombok.Getter;

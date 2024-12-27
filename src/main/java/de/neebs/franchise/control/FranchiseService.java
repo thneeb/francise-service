@@ -88,14 +88,6 @@ public class FranchiseService {
         }
     }
 
-    private void scoreIncome(GameRound round, int divisor) {
-        for (Map.Entry<PlayerColor, Score> entry : round.getScores().entrySet()) {
-            Score score = entry.getValue();
-            int influence = (franchiseCoreService.calcIncomeScore(entry.getKey(), round.getPlates())) / divisor;
-            score.setInfluence(score.getInfluence() + influence);
-        }
-    }
-
     public Draw minimax(GameRound round, int depth) {
         List<GameRoundDrawPredecessor> rounds = nextRounds(round, depth);
         Map<GameRoundDrawPredecessor, Map<PlayerColor, Integer>> scores = score(rounds);
@@ -162,22 +154,22 @@ public class FranchiseService {
     }
 
     public Draw minimaxAbPrune(GameRound round, int depth) {
-        Map<PlayerColor, Integer> alpha = new EnumMap<>(PlayerColor.class);
-        Map<PlayerColor, Integer> beta = new EnumMap<>(PlayerColor.class);
+        Map<PlayerColor, Double> alpha = new EnumMap<>(PlayerColor.class);
+        Map<PlayerColor, Double> beta = new EnumMap<>(PlayerColor.class);
         for (PlayerColor color : round.getPlayers()) {
-            alpha.put(color, -10000);
-            beta.put(color, 10000);
+            alpha.put(color, -Double.MAX_VALUE);
+            beta.put(color, Double.MAX_VALUE);
         }
         return minimaxAbPrune2(round, round.getNext(), depth, alpha, beta, new HashMap<>(), null).getDraw();
     }
 
-    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int depth, Map<PlayerColor, Integer> alpha, Map<PlayerColor, Integer> beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
+    private ScoredDraw minimaxAbPrune2(GameRound round, PlayerColor actual, int depth, Map<PlayerColor, Double> alpha, Map<PlayerColor, Double> beta, Map<Integer, Double> savedScores, List<ScoredDraw> scoredDraws) {
         if (depth == 0 || round.isEnd()) {
-            int score = evaluatePosition(round, actual);
+            double score = evaluatePosition(round, actual);
             return ScoredDraw.builder().gameRound(round).score(score).build();
         }
 
-        int extremeScore = round.getNext() == actual ? -10000 : +10000;
+        double extremeScore = round.getNext() == actual ? -Double.MAX_VALUE : Double.MAX_VALUE;
         ScoredDraw bestMove = null;
         for (Draw draw : filterAndSortDraws(round, franchiseCoreService.nextDraws(round))) {
             GameRound newBoard = franchiseCoreService.manualDraw(round, draw).getGameRound();
@@ -220,9 +212,9 @@ public class FranchiseService {
         }
     }
 
-    private ScoredDraw minimaxAbPrune(GameRound round, PlayerColor actual, int depth, int alpha, int beta, Map<Integer, Integer> savedScores, List<ScoredDraw> scoredDraws) {
+    private ScoredDraw minimaxAbPrune(GameRound round, PlayerColor actual, int depth, double alpha, double beta, Map<Integer, Double> savedScores, List<ScoredDraw> scoredDraws) {
         if (depth == 0 || round.isEnd()) {
-            int score = evaluatePosition(round, actual);
+            double score = evaluatePosition(round, actual);
 //            score = round.getNext() == actual ? -score : score;
             return ScoredDraw.builder().gameRound(round).score(score).build();
         }
@@ -235,7 +227,7 @@ public class FranchiseService {
         ScoredDraw bestMove = null;
         for (Draw draw : filterAndSortDraws(round, franchiseCoreService.nextDraws(round))) {
             GameRound newBoard = franchiseCoreService.manualDraw(round, draw).getGameRound();
-            Integer score = savedScores.get(newBoard.hashCode());
+            Double score = savedScores.get(newBoard.hashCode());
             ScoredDraw scoredDraw;
             if (score == null) {
                 if ((newBoard.getActual() == actual || newBoard.getNext() == actual) && newBoard.getActual() != newBoard.getNext()) {
@@ -269,41 +261,61 @@ public class FranchiseService {
         }
     }
 
-    private int evaluatePosition(GameRound round, PlayerColor color) {
+    private double evaluatePosition(GameRound round, PlayerColor color) {
         GamePhase phase = evaluateGamePhase(round);
-        franchiseCoreService.scoreTowns(round, null);
-        franchiseCoreService.scoreMoney(round, null, switch (phase) {
-            case START -> 4;
-            case GROW, END -> 3;
-        });
-        franchiseCoreService.scoreBonusTiles(round, null, switch (phase) {
+        double value = round.getScores().get(color).getInfluence() * switch (phase) {
+            case START -> 0;
+            case GROW -> 0.3;
+            case END -> 1;
+        };
+        Set<City> cities = franchiseCoreService.retrieveOwnedCities(round.getPlates(), color);
+        value += cities.stream()
+                .filter(f -> f.getSize() == 1)
+                .filter(f -> round.getPlates().get(f) != null)
+                .filter(f -> round.getPlates().get(f).getBranches().contains(color))
+                .count() * switch (phase) {
+            case START -> 0.8;
+            case GROW -> 0.9;
+            case END -> 1;
+        };
+        value += cities.stream()
+                .filter(f -> f.getSize() > 1)
+                .mapToInt(f -> f.getSize() - round.getPlates().get(f).getBranches().size())
+                .sum() * switch (phase) {
+            case START -> 1.0;
+            case GROW -> 0.9;
+            case END -> 0.8;
+        };
+        value += cities.stream()
+                .filter(f -> f.getSize() > 1)
+                .filter(f -> round.getPlates().get(f).getBranches().contains(color))
+                .count() * switch (phase) {
+            case START -> 1.0;
+            case GROW -> 0.9;
+            case END -> 0.8;
+        };
+        value += round.getScores().get(color).getMoney() * switch (phase) {
+            case START -> 0.1;
+            case GROW -> 0.3;
+            case END -> 1;
+        };
+        value += round.getScores().get(color).getBonusTiles() * switch (phase) {
+            case START -> 0.2;
+            case GROW -> 0.4;
+            case END -> 1;
+        };
+        value += round.getScores().get(color).getIncome() * switch (phase) {
             case START -> 1;
-            case GROW -> 2;
-            case END -> 4;
-        });
-        scoreIncome(round, switch (phase) {
-            case START -> 5;
-            case GROW -> 4;
-            case END -> 2;
-        });
-        scoreRegionPossession(round);
-        return franchiseCoreService.score(round.getScores()).get(color);
-    }
-
-    private void scoreRegionPossession(GameRound round) {
-        for (PlayerColor playerColor : round.getPlayers()) {
-            Set<City> ownedCities = franchiseCoreService.retrieveOwnedCities(round.getPlates(), playerColor);
-            int possessedRegions = (int)Arrays.stream(Region.values())
-                    .filter(f -> ownedCities.stream().anyMatch(g -> f.getCities().contains(g))).count();
-            Score score = round.getScores().get(playerColor);
-            score.setInfluence(score.getInfluence() + possessedRegions * 1);
-        }
+            case GROW -> 0.3;
+            case END -> 0.2;
+        };
+        return value;
     }
 
     public Draw divideAndConquer(GameRound round, int depth, int slice) {
         List<ScoredDraw> scoredDraws = new ArrayList<>();
         minimaxAbPrune(round, round.getNext(), depth, -10000, +10000, new HashMap<>(), scoredDraws);
-        scoredDraws.sort((o1, o2) -> -Integer.compare(o1.getScore(), o2.getScore()));
+        scoredDraws.sort((o1, o2) -> -Double.compare(o1.getScore(), o2.getScore()));
         if (slice == 0) {
             return scoredDraws.get(0).getDraw();
         } else {
@@ -329,7 +341,7 @@ public class FranchiseService {
     private static class ScoredDraw {
         private Draw draw;
         private GameRound gameRound;
-        private int score;
+        private double score;
     }
 
     @Getter

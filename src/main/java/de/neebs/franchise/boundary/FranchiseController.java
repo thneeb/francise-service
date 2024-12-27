@@ -30,9 +30,9 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 @RequiredArgsConstructor
 @Slf4j
 public class FranchiseController implements DefaultApi {
-    private final Map<String, List<GameRoundDraw>> gameRoundDraws = new HashMap<>();
-
     private final GameEngine gameEngine;
+
+    private final GamePersistence gamePersistence;
 
     private final Map<String, Set<ComputerStrategy>> learningAlgorithms = new HashMap<>();
 
@@ -42,7 +42,7 @@ public class FranchiseController implements DefaultApi {
         Set<ComputerStrategy> algorithms = gameConfig.getLearningModels() == null ? Set.of() : new HashSet<>(gameConfig.getLearningModels());
         GameRound round = gameEngine.initGame(players);
         String uuid = UUID.randomUUID().toString();
-        gameRoundDraws.put(uuid, new ArrayList<>(List.of(GameRoundDraw.builder().gameRound(round).build())));
+        gamePersistence.saveGame(uuid, new ArrayList<>(List.of(GameRoundDraw.builder().gameRound(round).build())));
         learningAlgorithms.put(uuid, algorithms);
         String href = linkTo(methodOn(getClass()).retrieveGameBoard(uuid)).withSelfRel().getHref();
         GameField field = mapGameField(round);
@@ -51,7 +51,7 @@ public class FranchiseController implements DefaultApi {
 
     @Override
     public ResponseEntity<GameField> retrieveGameBoard(String gameId) {
-        List<GameRoundDraw> gdrs = gameRoundDraws.get(gameId);
+        List<GameRoundDraw> gdrs = gamePersistence.loadGame(gameId);
         GameRound round = gdrs.get(gdrs.size() - 1).getGameRound();
         GameField field = mapGameField(round);
         return ResponseEntity.ok(field);
@@ -62,6 +62,7 @@ public class FranchiseController implements DefaultApi {
         field.setEnd(round.isEnd());
         field.setInitialization(round.isUpcomingRoundInitialization());
         field.setBonusTileUsable(round.isUpcomingRoundBonusTileUsable());
+        field.setRound(round.getRound());
         field.setFirstCities(round.getFirstCityScorers().entrySet().stream()
                 .map(f -> PlayerRegion.builder().region(mapRegion(f.getKey())).color(mapPlayerColor(f.getValue())).build()).toList());
         field.setClosedRegions(round.getScoredRegions().stream().map(this::mapRegion).toList());
@@ -87,7 +88,7 @@ public class FranchiseController implements DefaultApi {
 
     @Override
     public ResponseEntity<ExtendedDraw> createDraw(String gameId, Draw draw) {
-        List<GameRoundDraw> gdrs = gameRoundDraws.get(gameId);
+        List<GameRoundDraw> gdrs = gamePersistence.loadGame(gameId);
         GameRoundDraw gdr = gdrs.get(gdrs.size() - 1);
         GameRound round = gdr.getGameRound();
 
@@ -111,13 +112,15 @@ public class FranchiseController implements DefaultApi {
         ExtendedGameRound extendedGameRound = gameEngine.makeDraw(round, mapDraw(humanDraw));
         gdrs.add(GameRoundDraw.builder().gameRound(extendedGameRound.getGameRound()).build());
 
-        if (extendedGameRound.getGameRound().isEnd()) {
+        if (extendedGameRound.getGameRound().isEnd() && learningAlgorithms.containsKey(gameId)) {
             for (ComputerStrategy strategy : learningAlgorithms.get(gameId)) {
                 LearningModel model = gameEngine.createLearningModel(mapAlgorithm(strategy));
-                model.train(gameRoundDraws.get(gameId));
+                model.train(gdrs);
                 model.save();
             }
         }
+
+        gamePersistence.saveGame(gameId, gdrs);
 
         ExtendedDraw extendedDraw = new ExtendedDraw();
         extendedDraw.setDraw(humanDraw);
@@ -131,14 +134,14 @@ public class FranchiseController implements DefaultApi {
 
     @Override
     public ResponseEntity<List<HumanDraw>> evaluateNextPossibleDraws(String gameId) {
-        List<GameRoundDraw> gdrs = gameRoundDraws.get(gameId);
+        List<GameRoundDraw> gdrs = gamePersistence.loadGame(gameId);
         GameRound round = gdrs.get(gdrs.size() - 1).getGameRound();
         return ResponseEntity.ok(gameEngine.nextPossibleDraws(round).stream().map(f -> mapDraw(mapPlayerColor(round.getNext()), f)).toList());
     }
 
     @Override
     public ResponseEntity<HumanDraw> retrieveDraw(String gameId, Integer index) {
-        List<GameRoundDraw> gdrs = gameRoundDraws.get(gameId);
+        List<GameRoundDraw> gdrs = gamePersistence.loadGame(gameId);
         if (gdrs.size() < 2) {
             return ResponseEntity.notFound().build();
         }
@@ -147,8 +150,21 @@ public class FranchiseController implements DefaultApi {
     }
 
     @Override
+    public ResponseEntity<GameField> undoDraws(String gameId, Integer index) {
+        List<GameRoundDraw> gdrs = gamePersistence.loadGame(gameId);
+        if (gdrs.size() < 2) {
+            return ResponseEntity.notFound().build();
+        }
+        gdrs.remove((gdrs.size() + index) % gdrs.size());
+        GameRoundDraw gdr = gdrs.get(gdrs.size() - 1);
+        gdr.setDraw(null);
+        gamePersistence.saveGame(gameId, gdrs);
+        return ResponseEntity.ok(mapGameField(gdr.getGameRound()));
+    }
+
+    @Override
     public ResponseEntity<List<PlayerColorAndInteger>> playGame(String gameId, PlayConfig playConfig) {
-        List<GameRoundDraw> gdrs = gameRoundDraws.get(gameId);
+        List<GameRoundDraw> gdrs = gamePersistence.loadGame(gameId);
         GameRound round = gdrs.get(gdrs.size() - 1).getGameRound();
         if (playConfig == null) {
             throw new IllegalArgumentException("No config given");

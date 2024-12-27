@@ -71,21 +71,14 @@ public class FranchiseCoreService {
     private void updateExtensionCosts(GameRound round) {
         Set<City> ownCities = retrieveOwnedCities(round.getPlates(), round.getNext());
         for (City city : City.values()) {
-            if (!ownCities.contains(city)) {
-                CityPlate plate = round.getPlates().get(city);
-                if (plate != null) {
-                    if (!plate.isClosed()) {
+            CityPlate plate = round.getPlates().get(city);
+            if (plate != null) {
+                plate.setExtensionCosts(null);
+                if (!ownCities.contains(city) && !plate.isClosed() && !plate.getBranches().contains(round.getNext())) {
                         Optional<Connection> optionalConnection = Rules.CONNECTIONS.stream()
                                 .filter(f -> f.getCities().contains(city) && f.getCities().stream().anyMatch(ownCities::contains))
                                 .min(Comparator.comparingInt(Connection::getCosts));
-                        if (optionalConnection.isPresent()) {
-                            plate.setExtensionCosts(optionalConnection.get().getCosts());
-                        } else {
-                            plate.setExtensionCosts(null);
-                        }
-                    } else {
-                        plate.setExtensionCosts(null);
-                    }
+                    optionalConnection.ifPresent(connection -> plate.setExtensionCosts(connection.getCosts()));
                 }
             }
         }
@@ -251,7 +244,7 @@ public class FranchiseCoreService {
     private void scoreCities(GameRound round, AdditionalInfo additionalInfo) {
         Score score = round.getScores().get(round.getNext());
         for (Map.Entry<City, CityPlate> entry : round.getPlates().entrySet()) {
-            if (entry.getKey().getSize() == 1 && !entry.getValue().isClosed()) {
+            if (entry.getKey().getSize() == 1 && entry.getValue().getBranches().size() == 1 && !entry.getValue().isClosed()) {
                 entry.getValue().setClosed(true);
             }
             if (entry.getValue().isClosed()) {

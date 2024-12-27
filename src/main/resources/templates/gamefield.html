@@ -1,16 +1,27 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns="http://www.w3.org/1999/html" lang="EN">
 <!--/*@thymesVar id="appName" type="java.lang.String"*/-->
 <!--/*@thymesVar id="gameField" type="de.neebs.franchise.client.entity.GameField"*/-->
-<!--/*@thymesVar id="draw" type="de.neebs.franchise.boundary.frontend.Draw"*/-->
+<!--/*@thymesVar id="draw" type="de.neebs.franchise.boundary.entity.Draw"*/-->
 <head>
     <title>Game field</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <form action="#" th:action="@{/human-draw}" th:object="${draw}" method="POST">
+    <div th:if="${gameField.end}">
+        <h1>Game over</h1>
+        <div th:each="player : ${gameField.players}">
+            <span th:text="${player.color + ' (Money: ' + player.money + ', Income: ' + player.income + ', Influence: ' + player.influence + ', Bonus Tiles: ' + player.bonusTiles + ')'}"></span>
+        </div>
+        <a th:href="@{/}">Back to menu</a>
+    </div>
+    <form th:if="${!gameField.end}" action="#" th:action="@{/human-draw}" th:object="${draw}" method="POST">
         <input type="hidden" name="gameId" th:value="${gameId}">
         <input type="hidden" name="color" th:value="${gameField.next}">
-        <div th:text="'Turn of ' + ${gameField.next}"></div>
+        <a th:if="${gameField.round > 0}" th:href="@{/undo(gameId=${gameId})}">Undo last draw</a>
+        <div th:text="'Turn of ' + ${gameField.next} + ' (' + ${gameField.round} + ')'"></div>
+        <div th:each="player : ${gameField.players}">
+            <span th:text="${player.color + ' (Money: ' + player.money + ', Income: ' + player.income + ', Influence: ' + player.influence + ', Bonus Tiles: ' + player.bonusTiles + ')'}"></span>
+        </div>
         <div th:if="${lastDraw != null}" th:text="${lastDraw}"></div>
         <div th:if="${gameField.bonusTileUsable}">
             <select th:field="*{bonusTileUsage}">
@@ -18,7 +29,7 @@
                 <option th:each="item: ${availableBonusTiles}" th:value="${item}" th:text="${item}"></option>
             </select>
         </div>
-        <div th:each="city : ${gameField.cities}">
+        <div th:each="city : ${gameField.cities}" th:style="${city.closed ? 'color: red' : ''}">
             <span th:text="${city.city + ' (Size = ' + city.size} + '): '"></span>
             <span th:each="branch : ${city.branches}" th:text="${branch}"></span>
             <span th:if="${!city.closed && #lists.contains(city.branches, gameField.next)}">
@@ -29,7 +40,7 @@
                 </select>
             </span>
             <span th:if="${city.extensionCosts != null}">
-                EXTEND: <input type="checkbox" th:field="*{extensions}" th:value="${city.city}">
+                <label th:text="'EXTEND (' + ${city.extensionCosts} + '): '"></label><input type="checkbox" th:field="*{extensions}" th:value="${city.city}">
             </span>
             <span th:if="${gameField.initialization == true && city.size == 1 && !city.closed == true}">
                 SELECT: <input type="radio" th:field="*{extensions}" th:value="${city.city}">
@@ -37,7 +48,7 @@
         </div>
         <input type="submit" value="Make draw">
     </form>
-    <form action="#" th:action="@{/computer-draw}" th:object="${computerConfig}" method="POST">
+    <form th:if="${!gameField.end}" action="#" th:action="@{/computer-draw}" th:object="${computerConfig}" method="POST">
         <input type="hidden" name="gameId" th:value="${gameId}">
         <input type="hidden" name="color" th:value="${gameField.next}">
         <select th:field="*{strategy}">

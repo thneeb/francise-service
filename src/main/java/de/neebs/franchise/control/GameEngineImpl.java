@@ -96,7 +96,7 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.divideAndConquer(round, getInt(getParams(), DEPTH, 3), getInt(getParams(), SLICE, 3));
+            return franchiseService.divideAndConquer(round, getInt(getParams(), DEPTH, 2), getInt(getParams(), SLICE, 2));
         }
     }
 

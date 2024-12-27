@@ -86,14 +86,23 @@ paths:
         required: true
         in: path
     get:
-        operationId: retrieveDraw
-        responses:
-          '200':
-            description: Returns the draw for the given index
-            content:
-              'application/json':
-                schema:
-                  $ref: '#/components/schemas/HumanDraw'
+      operationId: retrieveDraw
+      responses:
+        '200':
+          description: Returns the draw for the given index
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/HumanDraw'
+    delete:
+      operationId: undoDraws
+      responses:
+        '200':
+          description: Returns the actual game field for the given id
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/GameField'
   /franchise/{gameId}/learnings:
     parameters:
       -
@@ -140,6 +149,8 @@ components:
           type: boolean
         bonusTileUsable:
           type: boolean
+        round:
+          type: integer
         next:
           $ref: '#/components/schemas/PlayerColor'
         cities:

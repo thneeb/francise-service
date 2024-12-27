@@ -1,15 +1,13 @@
 package de.neebs.franchise.boundary;
 
-import de.neebs.franchise.boundary.frontend.ComputerConfig;
-import de.neebs.franchise.boundary.frontend.Draw;
-import de.neebs.franchise.boundary.frontend.SetupGame;
+import de.neebs.franchise.boundary.entity.ComputerConfig;
+import de.neebs.franchise.boundary.entity.Draw;
+import de.neebs.franchise.boundary.entity.SetupGame;
 import de.neebs.franchise.client.entity.*;
 import de.neebs.franchise.integration.FrontendBackendBridge;
 import feign.FeignException;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -18,12 +16,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -118,6 +113,12 @@ public class FrontendController {
                 .params(config.getParameters())
                 .build();
         ResponseEntity<ExtendedDraw> response = frontendBackendBridge.createDraw(gameId, computerPlayer);
+        return "redirect:/game?gameId=" + gameId;
+    }
+
+    @GetMapping("/undo")
+    public String undo(@RequestParam("gameId") String gameId, Model model) {
+        ResponseEntity<GameField> response = frontendBackendBridge.undoDraws(gameId, -1);
         return "redirect:/game?gameId=" + gameId;
     }
 }

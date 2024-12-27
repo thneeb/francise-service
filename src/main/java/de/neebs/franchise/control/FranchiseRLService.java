@@ -144,8 +144,7 @@ public class FranchiseRLService {
         NDList list = trainer.getModel().getBlock().forward(parameterStore, new NDList(input), false);
 
         List<RatedDraw> ratedDraws = new ArrayList<>();
-        for (int i = 0; i < list.size(); i++) {
-            NDArray array = list.get(i);
+        for (NDArray array : list) {
             for (int j = 0; j < array.size(); j++) {
                 ratedDraws.add(RatedDraw.builder().draw(outputs.get(j)).rating(array.get(j).getFloat()).build());
             }
@@ -176,7 +175,7 @@ public class FranchiseRLService {
         if (learnings.isEmpty()) {
             return Collections.emptyMap();
         }
-        learnings.get(0).setInfluence(plus(learnings.get(0).getInfluence(), multiply(discountRevenues(learnings.subList(1, learnings.size())), 0.9f)));
+        learnings.get(0).setInfluence(plus(learnings.get(0).getInfluence(), multiply(discountRevenues(learnings.subList(1, learnings.size())), 0.99f)));
         return learnings.get(0).getInfluence();
     }
 
