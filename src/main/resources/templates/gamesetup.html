@@ -16,6 +16,11 @@
         </select>
     </label>
     <br/>
+    <label for="algorithms">Algorithms</label><br/>
+    <select id="algorithms" th:field="*{selectedAlgorithms}" multiple>
+        <option th:each="algorithm: *{availableAlgorithms}" th:value="${algorithm}" th:text="${algorithm}"></option>
+    </select>
+    <br/>
     <input type="submit" name="Auswahl"/>
 </form>
 </body>

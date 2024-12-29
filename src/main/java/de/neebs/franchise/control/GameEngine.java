@@ -9,7 +9,7 @@ public interface GameEngine {
 
     ComputerPlayer createComputerPlayer(Algorithm algorithm, PlayerColor playerColor, Map<String, Object> params);
 
-    LearningModel createLearningModel(Algorithm algorithm);
+    LearningModel createLearningModel(Algorithm algorithm, Map<String, Object> params);
 
     Map<PlayerColor, Integer> play(GameRound round, Set<ComputerPlayer> players, Set<LearningModel> learningModels, Map<String, Object> params, int times);
 

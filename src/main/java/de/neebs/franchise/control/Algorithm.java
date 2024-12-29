@@ -7,5 +7,6 @@ public enum Algorithm {
     MINIMAX,
     MINIMAX_AB_PRUNE,
     MONTE_CARLO_TREE_SEARCH,
-    DIVIDE_AND_CONQUER
+    DIVIDE_AND_CONQUER,
+    Q_LEARNING
 }

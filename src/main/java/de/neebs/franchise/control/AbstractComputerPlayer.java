@@ -15,4 +15,32 @@ abstract class AbstractComputerPlayer implements ComputerPlayer{
         this.playerColor = playerColor;
         this.params = params;
     }
+
+    protected int getInt(Map<String, Object> map, String name, int defaultValue) {
+        if (map == null) {
+            return defaultValue;
+        }
+        Object o = map.get(name);
+        if (o instanceof Integer value) {
+            return value;
+        } else if (o instanceof Long value) {
+            return value.intValue();
+        } else {
+            return defaultValue;
+        }
+    }
+
+    protected float getFloat(Map<String, Object> map, String name, float defaultValue) {
+        if (map == null) {
+            return defaultValue;
+        }
+        Object o = map.get(name);
+        if (o instanceof Float value) {
+            return value;
+        } else if (o instanceof Double value) {
+            return value.floatValue();
+        } else {
+            return defaultValue;
+        }
+    }
 }

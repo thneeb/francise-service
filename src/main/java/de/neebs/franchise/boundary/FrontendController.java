@@ -35,6 +35,7 @@ public class FrontendController {
     public String setupGame(@ModelAttribute SetupGame setupGame, Model model) {
         setupGame.setAvailablePlayerColors(Arrays.asList(PlayerColor.values()));
         setupGame.setSelectedPlayerColors(Arrays.stream(PlayerColor.values()).map(PlayerColor::name).toList());
+        setupGame.setAvailableAlgorithms(Arrays.asList(ComputerStrategy.values()));
         model.addAttribute(setupGame);
         return "gamesetup";
     }
@@ -52,6 +53,7 @@ public class FrontendController {
         log.info("Selected player colors: " + setupGame.getSelectedPlayerColors());
         ResponseEntity<GameField> response = frontendBackendBridge.initializeGame(GameConfig.builder()
                         .players(setupGame.getSelectedPlayerColors().stream().map(PlayerColor::valueOf).toList())
+                        .learningModels(setupGame.getSelectedAlgorithms().stream().map(ComputerStrategy::valueOf).toList())
                 .build());
         if (response.getHeaders().getLocation() == null) {
             throw new IllegalArgumentException();

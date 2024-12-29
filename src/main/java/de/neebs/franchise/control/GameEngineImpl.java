@@ -19,6 +19,8 @@ public class GameEngineImpl implements GameEngine {
 
     private final FranchiseMLService franchiseMLService;
 
+    private final FranchiseQLService franchiseQLService;
+
     private final InMemoryMonteCarloLearningModel inMemoryMonteCarloLearningModel;
 
     private class RLComputerPlayer extends AbstractComputerPlayer {
@@ -129,6 +131,38 @@ public class GameEngineImpl implements GameEngine {
         }
     }
 
+    private class QLearningComputerPlayer extends AbstractComputerPlayer {
+        private static final String EPSILON = "epsilon";
+
+        QLearningComputerPlayer(PlayerColor color, Map<String, Object> params) {
+            super(color, params);
+        }
+
+        @Override
+        public Draw evaluateDraw(GameRound round) {
+            return franchiseQLService.qLearning(round, getFloat(getParams(), EPSILON, 0.9f));
+        }
+    }
+
+    private class QLearningModel extends AbstractLearningModel {
+        private static final String GAMMA = "gamma";
+        private static final String LEARNING_RATE = "lr";
+
+        QLearningModel(Map<String, Object> params) {
+            super(params);
+        }
+
+        @Override
+        public void train(List<GameRoundDraw> gameRoundDraws) {
+            franchiseQLService.train(gameRoundDraws, getFloat(getParams(), GAMMA, 0.9f), getFloat(getParams(), LEARNING_RATE, 0.1f));
+        }
+
+        @Override
+        public void save() {
+            // do nothing
+        }
+    }
+
     private class MonteCarloLearningModel implements LearningModel {
         @Override
         public void train(List<GameRoundDraw> gameRoundDraws) {
@@ -188,19 +222,23 @@ public class GameEngineImpl implements GameEngine {
             return new FindBestDrawComputerPlayer(playerColor, params);
         } else if (algorithm == Algorithm.MONTE_CARLO_TREE_SEARCH) {
             return new MonteCarloComputerPlayer(playerColor, params);
+        } else if (algorithm == Algorithm.Q_LEARNING) {
+            return new QLearningComputerPlayer(playerColor, params);
         } else {
             throw new IllegalArgumentException("Unknown algorithm");
         }
     }
 
     @Override
-    public LearningModel createLearningModel(Algorithm algorithm) {
+    public LearningModel createLearningModel(Algorithm algorithm, Map<String, Object> params) {
         if (algorithm == Algorithm.MONTE_CARLO_TREE_SEARCH) {
             return new MonteCarloLearningModel();
         } else if (algorithm == Algorithm.REINFORCEMENT_LEARNING) {
             return new ReinforcementLearningModel();
         } else if (algorithm == Algorithm.MACHINE_LEARNING){
             return new MachineLearningModel();
+        } else if (algorithm == Algorithm.Q_LEARNING) {
+            return new QLearningModel(params);
         } else {
             throw new IllegalArgumentException("Unknown algorithm");
         }
@@ -251,33 +289,5 @@ public class GameEngineImpl implements GameEngine {
     @Override
     public List<Draw> nextPossibleDraws(GameRound round) {
         return franchiseCoreService.nextDraws(round);
-    }
-
-    private int getInt(Map<String, Object> map, String name, int defaultValue) {
-        if (map == null) {
-            return defaultValue;
-        }
-        Object o = map.get(name);
-        if (o instanceof Integer value) {
-            return value;
-        } else if (o instanceof Long value) {
-            return value.intValue();
-        } else {
-            return defaultValue;
-        }
-    }
-
-    private float getFloat(Map<String, Object> map, String name, float defaultValue) {
-        if (map == null) {
-            return defaultValue;
-        }
-        Object o = map.get(name);
-        if (o instanceof Float value) {
-            return value;
-        } else if (o instanceof Double value) {
-            return value.floatValue();
-        } else {
-            return defaultValue;
-        }
     }
 }

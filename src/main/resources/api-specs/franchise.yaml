@@ -243,6 +243,7 @@ components:
         - DIVIDE_AND_CONQUER
         - MACHINE_LEARNING
         - REINFORCEMENT_LEARNING
+        - Q_LEARNING
     PlayerRegion:
       properties:
         color:

@@ -114,7 +114,7 @@ public class FranchiseController implements DefaultApi {
 
         if (extendedGameRound.getGameRound().isEnd() && learningAlgorithms.containsKey(gameId)) {
             for (ComputerStrategy strategy : learningAlgorithms.get(gameId)) {
-                LearningModel model = gameEngine.createLearningModel(mapAlgorithm(strategy));
+                LearningModel model = gameEngine.createLearningModel(mapAlgorithm(strategy), null);
                 model.train(gdrs);
                 model.save();
             }
@@ -171,7 +171,7 @@ public class FranchiseController implements DefaultApi {
         }
         int times = playConfig.getTimesToPlay() == null ? 1 : playConfig.getTimesToPlay();
         Set<ComputerPlayer> players = playConfig.getPlayers().stream().map(this::createComputerPlayer).collect(Collectors.toSet());
-        Set<LearningModel> learningModels = playConfig.getLearningModels() == null ? Set.of() : playConfig.getLearningModels().stream().map(this::createLearningModel).collect(Collectors.toSet());
+        Set<LearningModel> learningModels = playConfig.getLearningModels() == null ? Set.of() : playConfig.getLearningModels().stream().map(f -> createLearningModel(f, playConfig.getParams())).collect(Collectors.toSet());
         return ResponseEntity.ok(mapResult(gameEngine.play(round, players, learningModels, playConfig.getParams(), times)));
     }
 
@@ -183,8 +183,8 @@ public class FranchiseController implements DefaultApi {
         return gameEngine.createComputerPlayer(mapAlgorithm(computer.getStrategy()), mapPlayerColor(computer.getColor()), computer.getParams());
     }
 
-    private LearningModel createLearningModel(ComputerStrategy strategy) {
-        return gameEngine.createLearningModel(mapAlgorithm(strategy));
+    private LearningModel createLearningModel(ComputerStrategy strategy, Map<String, Object> params) {
+        return gameEngine.createLearningModel(mapAlgorithm(strategy), params);
     }
 
     private de.neebs.franchise.control.Draw mapDraw(HumanDraw draw) {
