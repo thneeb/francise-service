@@ -16,6 +16,18 @@ abstract class AbstractComputerPlayer implements ComputerPlayer{
         this.params = params;
     }
 
+    protected boolean getBoolean(Map<String, Object> map, String name, boolean defaultValue) {
+        if (map == null) {
+            return defaultValue;
+        }
+        Object o = map.get(name);
+        if (o instanceof Boolean value) {
+            return value;
+        } else {
+            return defaultValue;
+        }
+    }
+
     protected int getInt(Map<String, Object> map, String name, int defaultValue) {
         if (map == null) {
             return defaultValue;

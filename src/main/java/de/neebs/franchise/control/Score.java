@@ -10,14 +10,13 @@ import java.util.Set;
 
 @Getter
 @Setter
-@EqualsAndHashCode(exclude = {"influence", "expansions"})
+@EqualsAndHashCode(exclude = {"influence"})
 @ToString
 public class Score {
     private int money;
     private int influence;
     private int bonusTiles;
     private int income;
-    private Set<City> expansions = new HashSet<>();
 
     public static Score copy(Score value) {
         Score score = new Score();
@@ -25,7 +24,6 @@ public class Score {
         score.setInfluence(value.getInfluence());
         score.setMoney(value.getMoney());
         score.setIncome(value.getIncome());
-        score.setExpansions(new HashSet<>(value.getExpansions()));
         return score;
     }
 }

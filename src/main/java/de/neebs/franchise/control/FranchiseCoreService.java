@@ -113,7 +113,7 @@ public class FranchiseCoreService {
                 throw new IllegalDrawException("Cannot increase market share in " + entry.getKey().getName());
             }
         }
-        openFranchise(gameRound);
+        openFranchise(gameRound, extension);
         scoreCities(gameRound, additionalInfo);
         scoreRegions(gameRound, additionalInfo);
         if (additionalInfo != null) {
@@ -277,9 +277,8 @@ public class FranchiseCoreService {
         }
     }
 
-    private void openFranchise(GameRound round) {
-        Score score = round.getScores().get(round.getNext());
-        for (City city : score.getExpansions()) {
+    private void openFranchise(GameRound round, Set<City> extensions) {
+        for (City city : extensions) {
             CityPlate plate = round.getPlates().get(city);
             if (plate == null) {
                 plate = new CityPlate(false, new ArrayList<>(), null);
@@ -287,7 +286,6 @@ public class FranchiseCoreService {
             }
             plate.getBranches().add(round.getNext());
         }
-        score.getExpansions().clear();
     }
 
     private void expand(GameRound gameRound, City city, AdditionalInfo additionalInfo) {
@@ -311,7 +309,6 @@ public class FranchiseCoreService {
                 throw new IllegalDrawException("Not enough money for expansion to " + city);
             }
 
-            score.getExpansions().add(city);
             score.setMoney(score.getMoney() - optional.getExtensionCosts());
             if (additionalInfo != null) {
                 additionalInfo.getInfluenceComments().add("Extension costs for " + city + ": "+ optional.getExtensionCosts());

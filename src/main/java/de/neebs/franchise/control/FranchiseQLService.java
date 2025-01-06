@@ -1,9 +1,15 @@
 package de.neebs.franchise.control;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -13,26 +19,26 @@ import java.util.stream.Collectors;
 public class FranchiseQLService {
     private static final Random RANDOM = new Random();
 
+    private final ObjectMapper objectMapper;
+
     private final FranchiseCoreService franchiseCoreService;
 
-    private final Map<QState, Map<Draw, Double>> qValues = new HashMap<>(); // <state, <draw, value>>
+    private final QValuePersistence qValues = new QValueFilePersistence();
 
     public Draw qLearning(GameRound round, float epsilon) {
         List<Draw> possibleDraws = franchiseCoreService.nextDraws(round);
         if (RANDOM.nextFloat() < epsilon) {
-            Map<Draw, Double> draws = qValues.computeIfAbsent(reduceState(round), k -> new HashMap<>());
+            QState state = reduceState(round);
+            Map<Draw, Double> draws = qValues.getQValues(state).get(state);
             Optional<Map.Entry<Draw, Double>> entry = draws.entrySet().stream()
                     .filter(e -> possibleDraws.contains(e.getKey()))
                     .max(Comparator.comparingDouble(Map.Entry::getValue));
             if (entry.isPresent()) {
-//                log.info("Hit");
                 return entry.get().getKey();
             } else {
-//                log.info("Miss");
                 return possibleDraws.get(RANDOM.nextInt(possibleDraws.size()));
             }
         } else {
-//            log.info("Random");
             return possibleDraws.get(RANDOM.nextInt(possibleDraws.size()));
         }
     }
@@ -60,11 +66,13 @@ public class FranchiseQLService {
             GameRound nextRound = gameRoundDraws.get(i + 1).getGameRound();
             int reward = nextRound.getScores().get(player).getInfluence() - round.getScores().get(player).getInfluence();
             QState nextState = reduceState(nextRound);
-            Map<Draw, Double> draws = qValues.computeIfAbsent(state, k -> new HashMap<>());
+            Map<QState, Map<Draw, Double>> qv = qValues.getQValues(state);
+            Map<Draw, Double> draws = qv.get(state);
             double q = draws.computeIfAbsent(draw, k -> 0d);
-            double maxQ = qValues.computeIfAbsent(nextState, k -> new HashMap<>()).values().stream().max(Double::compare).orElse(0d);
+            double maxQ = qValues.getQValues(nextState).get(nextState).values().stream().max(Double::compare).orElse(0d);
             q = q + learningRate * (reward + gamma * maxQ - q);
             draws.put(draw, q);
+            qValues.persist(qv);
         }
     }
 
@@ -80,5 +88,85 @@ public class FranchiseQLService {
         private int money;
         private int influence;
         private int bonusTiles;
+    }
+
+    private interface QValuePersistence {
+        Map<QState, Map<Draw, Double>> getQValues(QState state);
+
+        void persist(Map<QState, Map<Draw, Double>> qValues);
+    }
+
+    private static class QValueMemoryPersistence implements QValuePersistence {
+        private final Map<QState, Map<Draw, Double>> qValues = new HashMap<>(); // <state, <draw, value>>
+
+        @Override
+        public Map<QState, Map<Draw, Double>> getQValues(QState state) {
+            qValues.computeIfAbsent(state, k -> new HashMap<>());
+            return qValues;
+        }
+
+        @Override
+        public void persist(Map<QState, Map<Draw, Double>> qValues) {
+            // nothing to do
+        }
+    }
+
+    private class QValueFilePersistence implements QValuePersistence {
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor(access = AccessLevel.PRIVATE)
+        private static class SavedDrawValue {
+            private Draw draw;
+            private Double value;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor(access = AccessLevel.PRIVATE)
+        private static class SavedQValue {
+            private QState state;
+            private List<SavedDrawValue> qValues; // <draw, value>
+        }
+
+        @Override
+        public Map<QState, Map<Draw, Double>> getQValues(QState state) {
+            try {
+                String s = Files.readString(Path.of("qlearning", state.hashCode() + ".json"));
+                List<SavedQValue> savedQValue = objectMapper.readValue(s, new TypeReference<>() {});
+                Map<QState, Map<Draw, Double>> qv = savedQValue.stream().collect(Collectors.toMap(SavedQValue::getState, e -> e.getQValues().stream().collect(Collectors.toMap(SavedDrawValue::getDraw, SavedDrawValue::getValue))));
+                qv.computeIfAbsent(state, k -> new HashMap<>());
+                return qv;
+            } catch (IOException e) {
+                return Map.of(state, new HashMap<>());
+            }
+        }
+
+        @Override
+        public void persist(Map<QState, Map<Draw, Double>> qValues) {
+            List<SavedQValue> savedQValues = qValues.entrySet().stream().map(e -> {
+                SavedQValue savedQValue = new SavedQValue();
+                savedQValue.setState(e.getKey());
+                savedQValue.setQValues(e.getValue().entrySet().stream().map(f -> {
+                    SavedDrawValue savedDrawValue = new SavedDrawValue();
+                    savedDrawValue.setDraw(f.getKey());
+                    savedDrawValue.setValue(f.getValue());
+                    return savedDrawValue;
+                }).toList());
+                return savedQValue;
+            }).toList();
+            for (Map.Entry<QState, Map<Draw, Double>> entry : qValues.entrySet()) {
+                try {
+                    String s = objectMapper.writeValueAsString(savedQValues);
+                    Files.write(Path.of("qlearning", entry.getKey().hashCode() + ".json"), s.getBytes(), StandardOpenOption.CREATE);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException(e);
+                }
+                break;
+            }
+        }
     }
 }

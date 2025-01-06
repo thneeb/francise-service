@@ -91,6 +91,7 @@ public class GameEngineImpl implements GameEngine {
     private class DivideAndConquerComputerPlayer extends AbstractComputerPlayer {
         private static final String DEPTH = "depth";
         private static final String SLICE = "slice";
+        private static final String IGNORE_OTHERS = "ignoreOthers";
 
         DivideAndConquerComputerPlayer(PlayerColor color, Map<String, Object> params) {
             super(color, params);
@@ -98,7 +99,10 @@ public class GameEngineImpl implements GameEngine {
 
         @Override
         public Draw evaluateDraw(GameRound round) {
-            return franchiseService.divideAndConquer(round, getInt(getParams(), DEPTH, 2), getInt(getParams(), SLICE, 2));
+            return franchiseService.divideAndConquer(round,
+                    getInt(getParams(), DEPTH, 2),
+                    getInt(getParams(), SLICE, 0),
+                    getBoolean(getParams(), IGNORE_OTHERS, false));
         }
     }
 
@@ -251,7 +255,7 @@ public class GameEngineImpl implements GameEngine {
             List<GameRoundDraw> grds = play(round, players);
             Map<PlayerColor, Integer> map = grds.get(grds.size() - 1).getGameRound().getScores().entrySet().stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, f -> f.getValue().getInfluence()));
-            log.info("Result: {}: {}", i, map);
+            log.info("Result: {}: Rounds: {} {}", i, grds.size(), map);
             for (LearningModel learningModel : learningModels) {
                 learningModel.train(grds);
             }
